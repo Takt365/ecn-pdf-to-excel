@@ -187,7 +187,7 @@ function parseSub(text, mainNo) {
       continue;
     }
     if (currentRow && onePosition) {
-      const target = currentRow['旧品目'] ? '旧取付位置' : '新取付位置';
+      const target = currentRow['旧数量'] ? '旧取付位置' : '新取付位置';
       currentRow[target] = appendPosition(currentRow[target], onePosition[3]);
       continue;
     }
