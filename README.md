@@ -8,6 +8,11 @@
 - Node.js 18 及以上（推荐 20+）
 - 使用 `pdf-parse` 解析 PDF，使用 `xlsx` 生成 Excel
 
+## 数据格式依据
+- `ec_pdf.txt` 是本工具对应的 ABAP 开发源码，记录 ECN 报表的字段、标签和明细布局。
+- PDF 的字段解析规则依据该 ABAP 报表输出格式编写；如果 ABAP 报表布局发生变化，需要同步调整 `ecn_pdf_to_excel.mjs` 中的解析标签和明细规则。
+- `ec_pdf.txt` 仅作为格式和字段参考，不是 Node.js 运行时依赖。
+
 ```bash
 # Windows: 下载安装 Node.js https://nodejs.org
 # Mac:      brew install node
@@ -59,5 +64,6 @@ npm run batch -- "/path/to/pdf文件夹"
 |------|------|
 | `ecn_pdf_to_excel.mjs` | 主脚本：单个 PDF → 两个 Excel |
 | `batch.js` | 批量脚本：遍历文件夹 |
+| `ec_pdf.txt` | 对应的 ABAP 开发源码和报表格式参考 |
 | `package.json` | 依赖声明 |
 | `README.md` | 本说明 |

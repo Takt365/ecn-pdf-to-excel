@@ -1,2 +1,0 @@
-node .\batch.js "G:\AppDevelop\VS2026\基础数据\ec_pdf" --out "G:\AppDevelop\VS2026\基础数据\ec_pdf\output_final"
-node .\ecn_pdf_to_excel.js "G:\AppDevelop\VS2026\基础数据\ec_pdf\EA7814.pdf" --out "G:\AppDevelop\VS2026\基础数据\ec_pdf\output_final"
