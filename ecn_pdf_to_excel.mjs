@@ -133,12 +133,12 @@ function parseDetailLine(line, current, mainNo) {
   let oldSide = parseSide(data, items[0], quantities[0]);
   let newSide = parseSide(data, items[1], quantities[1]);
   const changeFlag = meta?.[2] || '';
-  if (items.length === 1 && changeFlag === 'C*') {
-    newSide = oldSide;
-    oldSide = { code: '', name: '', quantity: '', position: '' };
-  }
-  if (items.length === 1 && changeFlag === 'D*') {
-    newSide = { code: '', name: '', quantity: '', position: '' };
+  if (items.length === 1) {
+    // With one material, the ABAP report writes the detail flags only on the old side.
+    if (!meta) {
+      newSide = oldSide;
+      oldSide = { code: '', name: '', quantity: '', position: '' };
+    }
   }
 
   const potx = [meta?.[2] || '', meta?.[3] || '', meta?.[4] || '', meta?.[5] || ''];
@@ -188,7 +188,7 @@ function parseSub(text, mainNo) {
       continue;
     }
     if (currentRow && onePosition) {
-      const target = currentRow['旧品目コード'] ? '旧取付位置' : '新取付位置';
+      const target = currentRow['旧品目'] ? '旧取付位置' : '新取付位置';
       currentRow[target] = appendPosition(currentRow[target], onePosition[3]);
       continue;
     }
