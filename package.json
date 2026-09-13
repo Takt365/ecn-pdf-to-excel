@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "description": "ECN(PDF) → 两个 Excel（ヘッダ情報 / 明細情報）自动解析工具",
   "type": "module",
-  "main": "ecn_pdf_to_excel.js",
+  "main": "ecn_pdf_to_excel.mjs",
   "scripts": {
-    "start": "node ecn_pdf_to_excel.js",
+    "start": "node ecn_pdf_to_excel.mjs",
     "batch": "node batch.js"
   },
   "dependencies": {

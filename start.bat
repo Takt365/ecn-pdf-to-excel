@@ -18,7 +18,7 @@ if "%CHOICE%"=="3" exit /b
 
 :SINGLE
 set /p PDFPATH="PDF file path: "
-node ecn_pdf_to_excel.js "%PDFPATH%"
+node ecn_pdf_to_excel.mjs "%PDFPATH%"
 pause
 exit /b
 

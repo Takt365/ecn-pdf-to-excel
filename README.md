@@ -6,7 +6,7 @@
 
 ## 环境要求（一次性安装）
 - Node.js 18 及以上（推荐 20+）
-- 可选：`pdftotext`（poppler-utils），有则更快；没有会自动用 pdfplumber
+- 使用 `pdf-parse` 解析 PDF，使用 `xlsx` 生成 Excel
 
 ```bash
 # Windows: 下载安装 Node.js https://nodejs.org
@@ -24,11 +24,11 @@ cd ecn-pdf-to-excel
 npm install
 
 # 3. 单个 PDF 转换
-node ecn_pdf_to_excel.js "/path/to/GA1674.pdf"
+node ecn_pdf_to_excel.mjs "/path/to/GA1674.pdf"
 #   → 在同目录生成两个 Excel
 
 # 3b. 指定输出目录
-node ecn_pdf_to_excel.js "/path/to/GA1674.pdf" --out "./output"
+node ecn_pdf_to_excel.mjs "/path/to/GA1674.pdf" --out "./output"
 
 # 4. 批量转换整个文件夹
 node batch.js "/path/to/pdf文件夹"
@@ -50,14 +50,14 @@ npm run batch -- "/path/to/pdf文件夹"
 ```
 
 ## 常见问题
-- **报 xlsx / pdfplumber 找不到** → 确认在目录下执行过 `npm install`
-- **解析字段为空** → 不同 ECN 模板字段名可能不同，按 `ecn_pdf_to_excel.js` 里的 `pickLine()` 调整标签即可
+- **报 `xlsx` 或 `pdf-parse` 找不到** → 确认在目录下执行过 `npm install`
+- **解析字段为空** → 不同 ECN 模板字段名可能不同，按 `ecn_pdf_to_excel.mjs` 里的 `pickLine()` 调整标签即可
 - **中文/日文乱码** → 确保终端与系统区域设置支持 UTF-8
 
 ## 文件说明
 | 文件 | 作用 |
 |------|------|
-| `ecn_pdf_to_excel.js` | 主脚本：单个 PDF → 两个 Excel |
+| `ecn_pdf_to_excel.mjs` | 主脚本：单个 PDF → 两个 Excel |
 | `batch.js` | 批量脚本：遍历文件夹 |
 | `package.json` | 依赖声明 |
 | `README.md` | 本说明 |

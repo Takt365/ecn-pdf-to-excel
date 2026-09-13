@@ -16,7 +16,7 @@ read -rp "请选择 (1/2): " CHOICE
 case "$CHOICE" in
   1)
     read -rp "请输入PDF文件路径: " PDF
-    node ecn_pdf_to_excel.js "$PDF"
+    node ecn_pdf_to_excel.mjs "$PDF"
     ;;
   2)
     read -rp "请输入包含PDF的文件夹路径: " DIR

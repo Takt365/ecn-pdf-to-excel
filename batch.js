@@ -52,7 +52,7 @@ for (const f of files) {
   console.log(`📄 处理: ${f}`);
   console.log(`   路径: ${fullPath}`);
   try {
-    execSync(`node "${path.join(__dirname, "ecn_pdf_to_excel.js")}" "${fullPath}" --out "${outDir}"`, {
+    execSync(`node "${path.join(__dirname, "ecn_pdf_to_excel.mjs")}" "${fullPath}" --out "${outDir}"`, {
       stdio: "inherit",
     });
     success++;
