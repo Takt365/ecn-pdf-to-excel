@@ -1,0 +1,1834 @@
+*&---------------------------------------------------------------------*
+*& プログラムＩＤ：ZS0PR020
+*& プログラム名称：設計変更情報
+*& 作    成    者：ＴＳＣ　深沢
+*& 作    成    日：00/07/17
+*& 備　　　　　考：
+*&---------------------------------------------------------------------*
+*& 変  更  番  号：
+*& 変    更    者：ＴＳＣ　深沢
+*& 変    更    日：01/07/11
+*& 変更前 Version：
+*& 変  更  内  容：取付位置のLGH拡張 6桁→13桁
+*&---------------------------------------------------------------------*
+*& 変  更  番  号：001
+*& 変    更    者：T5756
+*& 変    更    日：2015/01/23
+*& 変更前 Version：00005
+*& 変  更  内  容：バージョンアップ対応
+*&---------------------------------------------------------------------*
+*& 変  更  番  号：
+*& 変    更    者：TOS 深沢
+*& 変    更    日：2015/08/13
+*& 変更前 Version：
+*& 変  更  内  容：#1500282 ユニコード対応
+*&---------------------------------------------------------------------*
+REPORT ZS0PR020 MESSAGE-ID ZP
+                LINE-COUNT 58
+                LINE-SIZE 170
+                NO STANDARD PAGE HEADING.
+
+************************************************************************
+* INCLUDE
+************************************************************************
+*INCLUDE:
+
+************************************************************************
+* TABLES
+************************************************************************
+TABLES:
+  AENR,                                "変更マスタ
+  T419T,                               "変更マスタステータステキスト
+  CABN,                                "特性
+  AUSP,                                "特性値
+  CAWN,                                "特性値
+  CAWNT,                               "値テキスト
+  STAS,                                "BOM - 明細選択
+  STPO,                                "BOM明細
+  MAST,                                "品目のBOMへのリンク
+  MAKT.                                "品目テキスト
+
+************************************************************************
+* DATA
+************************************************************************
+*** 内部テーブル定義
+***                                 ** 設変情報用
+TYPES: BEGIN OF TYPE_WRK1,
+  AENNR  LIKE AENR-AENNR,              "設変番号
+  AETXT  LIKE AENR-AETXT,              "タイトル
+  AESTX  LIKE T419T-AESTX,             "ステータス
+  DATA01 LIKE AUSP-ATFLV,              "発行日
+  DATA02 LIKE AUSP-ATWRT,              "担当
+  DATA03 LIKE AUSP-ATWRT,              "依頼元
+  DATA04 LIKE CAWNT-ATWTB,             "設変会議
+  DATA05 LIKE AUSP-ATWRT,              "PP番号
+  DATA06 LIKE AUSP-ATWRT,              "技術連絡書№
+  DATA07 LIKE CAWNT-ATWTB,             "実施
+  DATA08 LIKE CAWNT-ATWTB,             "変更理由（主）
+  DATA09 LIKE CAWNT-ATWTB,             "変更理由（従）
+  DATA10 LIKE CAWNT-ATWTB,             "安全規格
+  DATA11 LIKE CAWNT-ATWTB,             "進行状況
+  DATA12 LIKE CAWNT-ATWTB,             "機番管理
+  DATA13 LIKE CAWNT-ATWTB,             "客先承認
+  DATA14 LIKE CAWNT-ATWTB,             "Sマニュアル訂正
+  DATA15 LIKE CAWNT-ATWTB,             "取設訂正
+  DATA16 LIKE CAWNT-ATWTB,             "カタログ訂正
+  DATA17 LIKE CAWNT-ATWTB,             "作業標準訂正
+  DATA18 LIKE CAWNT-ATWTB,             "技術情報発行
+  DATA19 LIKE CAWNT-ATWTB,             "コスト変動
+  DATA20 LIKE AUSP-ATFLV,              "単位コスト
+  DATA21 LIKE AUSP-ATFLV,              "金型改造費
+  DATA22 LIKE AUSP-ATWRT,              "単位コスト2
+  DATA23 LIKE AUSP-ATWRT,              "金型改造費2
+END OF TYPE_WRK1.
+DATA: REC_WRK1 TYPE TYPE_WRK1.
+***                                 ** 設変記事用
+TYPES: BEGIN OF TYPE_WRK2.
+        INCLUDE STRUCTURE TLINE.
+TYPES: END OF TYPE_WRK2.
+DATA: TAB_WRK2 TYPE STANDARD TABLE OF TYPE_WRK2
+                    WITH HEADER LINE.
+
+***                                 ** BOM明細用
+TYPES: BEGIN OF TYPE_WRK3,
+  STLTY LIKE STAS-STLTY,               "BOMカテゴリ
+  STLNR LIKE STAS-STLNR,               "部品表
+  STVKN LIKE STAS-STVKN,               "BOM 明細の継承ノード番号
+  STLKN LIKE STAS-STLKN,               "明細ノード番号
+  LKENZ LIKE STAS-LKENZ,               "削除フラグ
+END OF TYPE_WRK3.
+DATA: TAB_WRK3 TYPE STANDARD TABLE OF TYPE_WRK3
+                    WITH HEADER LINE.
+***                                 ** BOM副明細用(読込)
+TYPES: BEGIN OF TYPE_WRK4.
+        INCLUDE STRUCTURE STPUB.
+TYPES: END OF TYPE_WRK4.
+DATA: TAB_WRK4 TYPE STANDARD TABLE OF TYPE_WRK4
+                    WITH HEADER LINE.
+***                                 ** 詳細用ワーク
+TYPES: BEGIN OF TYPE_WRK5,
+  MATNR LIKE MAST-MATNR,               "親品目コード
+  STLTY LIKE STAS-STLTY,               "BOMカテゴリ
+  STLNR LIKE STAS-STLNR,               "部品表
+  STVKN LIKE STAS-STVKN,               "BOM明細の継承ノード番号
+  POSNR LIKE STPO-POSNR,               "BOM明細番号
+  STLKN LIKE STAS-STLKN,               "明細ノード番号
+  LKENZ LIKE STAS-LKENZ,               "削除フラグ
+  STPOZ LIKE STPO-STPOZ,               "内部ｶｳﾝﾀ
+  IDNRK LIKE STPO-IDNRK,               "構成品目
+  MENGE LIKE STPO-MENGE,               "構成品目数量
+  POTX1 LIKE STPO-POTX1,               "明細テキスト
+  UPSKZ LIKE STPO-UPSKZ,               "副明細有無
+  MAKTX LIKE MAKT-MAKTX,               "親品目名称
+  MAKTX1 LIKE MAKT-MAKTX,              "構成品目名称
+END OF TYPE_WRK5.
+DATA: TAB_WRK5 TYPE STANDARD TABLE OF TYPE_WRK5
+                    WITH HEADER LINE.
+DATA: REC_WRK5 TYPE TYPE_WRK5.
+DATA: REC_PRE  TYPE TYPE_WRK5.
+***                                 ** 詳細用ワーク(副明細)
+TYPES: BEGIN OF TYPE_WRK6,
+  STLTY LIKE STAS-STLTY,               "BOMカテゴリ
+  STLNR LIKE STAS-STLNR,               "部品表
+  STVKN LIKE STAS-STVKN,               "BOM明細の継承ノード番号
+  UPOSZ LIKE STPUB-UPOSZ,              "副明細番号
+  STLKN LIKE STAS-STLKN,               "明細ノード番号
+  LKENZ LIKE STAS-LKENZ,               "削除フラグ
+  POSNR LIKE STPO-POSNR,               "BOM明細番号
+  STPOZ LIKE STPO-STPOZ,               "内部ｶｳﾝﾀ
+  EBORT LIKE STPUB-EBORT,              "取付位置
+  UPMNG LIKE STPUB-UPMNG,              "副明細数量
+END OF TYPE_WRK6.
+DATA: TAB_WRK6 TYPE STANDARD TABLE OF TYPE_WRK6
+                    WITH HEADER LINE.
+
+***                                 ** 詳細用(件数)
+TYPES: BEGIN OF TYPE_WRK8,
+  MATNR LIKE MAST-MATNR,               "親品目コード
+  COUNT TYPE I,                        "親品目毎の明細件数
+  END OF TYPE_WRK8.
+DATA: TAB_WRK8 TYPE STANDARD TABLE OF TYPE_WRK8
+                    WITH HEADER LINE.
+
+***                                 ** リスト用(同期設変)
+TYPES: BEGIN OF TYPE_DOUKI,
+  DATA(68) TYPE C,                     "データ
+END OF TYPE_DOUKI.
+DATA: TAB_DOUKI  TYPE STANDARD TABLE OF TYPE_DOUKI
+                    WITH HEADER LINE.
+***                                 ** リスト用(関連設変)
+DATA: TAB_KANREN TYPE STANDARD TABLE OF TYPE_DOUKI
+                    WITH HEADER LINE.
+***                                 ** リスト用(関連図面)
+DATA: TAB_ZUMEN  TYPE STANDARD TABLE OF TYPE_DOUKI
+                    WITH HEADER LINE.
+
+***                                 ** 特性値、開始値　用
+TYPES: BEGIN OF TYPE_AUSP,
+  ATINN LIKE AUSP-ATINN,               "内部特性
+  ATWRT LIKE AUSP-ATWRT,               "特性値
+  ATFLV LIKE AUSP-ATFLV,               "開始値
+  ATWTB LIKE CAWNT-ATWTB,              "特性値
+  END OF TYPE_AUSP.
+DATA: TAB_AUSP TYPE STANDARD TABLE OF TYPE_AUSP
+                    WITH HEADER LINE.
+
+***                                 ** リスト用
+TYPES: BEGIN OF TYPE_LST,
+  CNT1(03)   TYPE C,                   "親品目SEQ
+  HIFUN(01)  TYPE C,                   " -
+  CNT2(03)   TYPE C,
+  FIL01(01)  TYPE C,
+  IDNRK(13)  TYPE C,                   "旧品目コード
+  FIL02(02)  TYPE C,
+  MAKTX1(25) TYPE C,                   "旧品目名称
+  FIL03(02)  TYPE C,
+  MENGE(07)  TYPE C,                   "旧品目数量
+  FIL04(02)  TYPE C,
+*  EBORT1(06) TYPE C,                   "旧取付位置
+  EBORT1(13) TYPE C,                   "旧取付位置 2001/07/11 CHG
+  FIL05(02)  TYPE C,
+  IDNRK2(13) TYPE C,                   "新品目コード
+  FIL06(02)  TYPE C,
+  MAKTX2(25) TYPE C,                   "新品目名称
+  FIL07(02)  TYPE C,
+  MENGE2(07) TYPE C,                   "新品目数量
+  FIL08(02)  TYPE C,
+*  EBORT2(06) TYPE C,                   "新取付位置
+  EBORT2(13) TYPE C,                   "新取付位置 2001/07/11 CHG
+  FIL09(02)  TYPE C,
+  POSNR(06)  TYPE C,                   "BOM明細番号
+  FIL10(03)  TYPE C,
+  POTX1(02)  TYPE C,                   "明細テキスト1
+  FIL12(02)  TYPE C,
+  POTX2(01)  TYPE C,                   "明細テキスト2
+  FIL13(03)  TYPE C,
+  POTX3(01)  TYPE C,                   "明細テキスト3
+  FIL14(03)  TYPE C,
+  POTX4(01)  TYPE C,                   "明細テキスト4
+END OF TYPE_LST.
+DATA: REC_LST  TYPE TYPE_LST.
+
+*** グローバル変数定義
+DATA: G_FLG_CHK(01)     TYPE C,        "フラグ
+      G_FLG_LST(03)     TYPE C,        "リスト種類
+      G_MAKTX    LIKE MAKT-MAKTX,      "品目名称
+      G_CNT_WRK2        TYPE I,        "件数：変更記事
+      G_CNT_KK          TYPE I,        "件数：機種
+      G_CNT_SN          TYPE I,        "件数：同期設変
+      G_CNT_RN          TYPE I,        "件数：関連設変
+      G_CNT_ZM          TYPE I,        "件数：関連図面
+      G_CNT_MATNR(03)   TYPE N,        "件数：親品目SEQ
+      G_CNT_IDNRK(03)   TYPE N,        "件数：構成品目SEQ
+      G_ATINN24  LIKE AUSP-ATINN,      "内部特性：機種
+      G_ATINN25  LIKE AUSP-ATINN,      "内部特性：同期設変
+      G_ATINN26  LIKE AUSP-ATINN,      "内部特性：関連設変
+      G_ATINN27  LIKE AUSP-ATINN,      "内部特性：関連図面
+      G_KISYU1(038)      TYPE C,       "機種　編集データ1
+      G_KISYU2(038)      TYPE C,       "機種　編集データ2
+      G_KISYU3(038)      TYPE C.       "機種　編集データ3
+
+************************************************************************
+* CONSTANTS　
+************************************************************************
+CONSTANTS:
+   C_TITLE(40)  TYPE C VALUE
+               '設計変更情報',
+   C_TITLE1(40) TYPE C VALUE
+               'ENGINEERING CHANGE NOTICE',
+   C_TITLE2(40) TYPE C VALUE
+               '設計変更情報　詳細情報',
+   C_TITLE3(40) TYPE C VALUE
+               'ENGINEERING CHANGE NOTICE <DETAILS>',
+
+*** (特性値　用)
+   C_ATNAM_MAX  TYPE I VALUE 27,       "全件数
+   C_ATNAM_MAX2 TYPE I VALUE 23,       "件数 : グループ1
+   C_ATNAM01  LIKE CABN-ATNAM VALUE 'ZPP_IDT',  "発行日
+   C_ATNAM02  LIKE CABN-ATNAM VALUE 'ZPP_TN',   "担当
+   C_ATNAM03  LIKE CABN-ATNAM VALUE 'ZPP_RT',   "依頼元
+   C_ATNAM04  LIKE CABN-ATNAM VALUE 'ZPP_SK',   "設変会議
+   C_ATNAM05  LIKE CABN-ATNAM VALUE 'ZPP_PB',   "PP番号
+   C_ATNAM06  LIKE CABN-ATNAM VALUE 'ZPP_GR',   "技術連絡書№
+   C_ATNAM07  LIKE CABN-ATNAM VALUE 'ZPP_JS',   "実施
+   C_ATNAM08  LIKE CABN-ATNAM VALUE 'ZPP_HM1',  "変更理由（主）
+   C_ATNAM09  LIKE CABN-ATNAM VALUE 'ZPP_HM2',  "変更理由（従）
+   C_ATNAM10  LIKE CABN-ATNAM VALUE 'ZPP_AZK',  "安全規格
+   C_ATNAM11  LIKE CABN-ATNAM VALUE 'ZPP_SJ',   "進行状況
+   C_ATNAM12  LIKE CABN-ATNAM VALUE 'ZPP_CL',   "機番管理
+   C_ATNAM13  LIKE CABN-ATNAM VALUE 'ZPP_KS',   "客先承認
+   C_ATNAM14  LIKE CABN-ATNAM VALUE 'ZPP_SM',   "Sマニュアル訂正
+   C_ATNAM15  LIKE CABN-ATNAM VALUE 'ZPP_TT',   "取説訂正
+   C_ATNAM16  LIKE CABN-ATNAM VALUE 'ZPP_CT',   "カタログ訂正
+   C_ATNAM17  LIKE CABN-ATNAM VALUE 'ZPP_SH',   "作業標準訂正
+   C_ATNAM18  LIKE CABN-ATNAM VALUE 'ZPP_GJ',   "技術情報発行
+   C_ATNAM19  LIKE CABN-ATNAM VALUE 'ZPP_CS',   "コスト変動
+   C_ATNAM20  LIKE CABN-ATNAM VALUE 'ZPP_CST',  "単位コスト
+   C_ATNAM21  LIKE CABN-ATNAM VALUE 'ZPP_KN',   "金型改造費
+   C_ATNAM22  LIKE CABN-ATNAM VALUE 'ZPP_CU1',  "単位コスト()
+   C_ATNAM23  LIKE CABN-ATNAM VALUE 'ZPP_CU2',  "金型改造費()
+   C_ATNAM24  LIKE CABN-ATNAM VALUE 'ZPP_KK',   "機種
+   C_ATNAM25  LIKE CABN-ATNAM VALUE 'ZPP_SN',   "同期設変
+   C_ATNAM26  LIKE CABN-ATNAM VALUE 'ZPP_RN',   "関連設変
+   C_ATNAM27  LIKE CABN-ATNAM VALUE 'ZPP_ZM',   "関連図面
+*** (リスト　用)
+*   C_TITLE011(19) TYPE C VALUE '設変情報発行日    :',
+   C_TITLE011(19) TYPE C VALUE '設変会議日        :', "2001/07/11 CHG
+   C_TITLE012(19) TYPE C VALUE 'DATE               ',
+   C_TITLE021(19) TYPE C VALUE '担当              :',
+   C_TITLE022(19) TYPE C VALUE 'PERSON IN CHARGE   ',
+   C_TITLE031(19) TYPE C VALUE '依頼元            :',
+   C_TITLE032(19) TYPE C VALUE 'REQUESTING SECTION ',
+   C_TITLE041(19) TYPE C VALUE '設変会議          :',
+   C_TITLE042(19) TYPE C VALUE 'E.C.MTG.           ',
+   C_TITLE051(19) TYPE C VALUE 'ＰＰ番号          :',
+   C_TITLE052(19) TYPE C VALUE 'P.P.NO.            ',
+   C_TITLE061(19) TYPE C VALUE '技術連絡書№      :',
+   C_TITLE062(19) TYPE C VALUE 'ENG.INFO.NO.       ',
+   C_TITLE071(19) TYPE C VALUE '実施              :',
+   C_TITLE072(19) TYPE C VALUE 'ENFORCEMENT        ',
+   C_TITLE081(19) TYPE C VALUE '変更理由（主）    :',
+   C_TITLE082(19) TYPE C VALUE 'REASON(MAIN)       ',
+   C_TITLE091(19) TYPE C VALUE '変更理由（従）    :',
+   C_TITLE092(19) TYPE C VALUE 'REASON(SUB)        ',
+   C_TITLE101(19) TYPE C VALUE '安全規格          :',
+   C_TITLE102(19) TYPE C VALUE 'SAFETY STD         ',
+   C_TITLE111(19) TYPE C VALUE '進行状況          :',
+   C_TITLE112(19) TYPE C VALUE 'COORD.TO MERCHANT  ',
+   C_TITLE121(19) TYPE C VALUE '機番管理          :',
+   C_TITLE122(19) TYPE C VALUE 'CONTROL LEVEL      ',
+   C_TITLE131(19) TYPE C VALUE '客先承認          :',
+   C_TITLE132(19) TYPE C VALUE 'CUSTOMER"S APPRV ',
+   C_TITLE141(19) TYPE C VALUE 'Ｓマニュアル訂正  :',
+   C_TITLE142(19) TYPE C VALUE 'CHG.IN SERV.MANUAL ',
+   C_TITLE151(19) TYPE C VALUE '取説訂正          :',
+   C_TITLE152(19) TYPE C VALUE 'CHG.IN USR. MANUAL ',
+   C_TITLE161(19) TYPE C VALUE 'カタログ訂正      :',
+   C_TITLE162(19) TYPE C VALUE 'CHG.IN BROCHURE    ',
+   C_TITLE171(19) TYPE C VALUE '作業標準訂正      :',
+   C_TITLE172(19) TYPE C VALUE 'CHG.IN MFTR.MANUAL ',
+   C_TITLE181(19) TYPE C VALUE '技術情報発行      :',
+   C_TITLE182(19) TYPE C VALUE 'ENGINEERING INFO.  ',
+   C_TITLE191(19) TYPE C VALUE 'コスト変動        :',
+   C_TITLE192(19) TYPE C VALUE 'COST               ',
+   C_TITLE201(19) TYPE C VALUE '単位コスト        :',
+   C_TITLE202(19) TYPE C VALUE 'UNIT COST          ',
+   C_TITLE211(19) TYPE C VALUE '金型改造費        :',
+   C_TITLE212(19) TYPE C VALUE 'COST FOR DIE       '.
+
+***********************************************************************
+* PARAMETERS & SELECT-OPTIONS
+***********************************************************************
+PARAMETERS:                            "設計変更番号
+  P_AENNR LIKE AENR-AENNR OBLIGATORY MATCHCODE OBJECT AEN1.
+
+SELECTION-SCREEN SKIP 1.
+SELECTION-SCREEN BEGIN OF BLOCK GRP WITH FRAME TITLE TEXT-001.
+PARAMETERS:
+  P_GRP1  RADIOBUTTON GROUP RG01,      "グループ：要約
+  P_GRP2  RADIOBUTTON GROUP RG01.      "グループ：全件
+SELECTION-SCREEN END   OF BLOCK GRP.
+
+***                                 ** 非表示
+SELECT-OPTIONS:
+  S_ATINN  FOR CABN-ATINN NO-DISPLAY.  "内部特性
+
+************************************************************************
+* INITIALIZATION.
+************************************************************************
+INITIALIZATION.
+
+************************************************************************
+* AT SELECTION-SCREEN.
+************************************************************************
+AT SELECTION-SCREEN.
+** データ存在チェック:メイン
+  PERFORM F_READ_CHECK.
+
+************************************************************************
+* START-OF-SELECTION
+************************************************************************
+START-OF-SELECTION.
+** 初期処理
+  PERFORM F_FIRST.
+** データ抽出: メイン
+  PERFORM F_READ_MAIN.
+** データ抽出: 詳細用
+  PERFORM F_READ_DATA2.
+** 各種　件数取得
+  PERFORM F_GET_COUNT.
+** ソート
+** (品目コード > 構成品目コード)
+  SORT TAB_WRK5 BY MATNR STLTY STLNR STVKN ASCENDING LKENZ DESCENDING.
+** (BOMカテゴリ > 部品表 > BOM明細の継承ノード番号 > 副明細番号)
+  SORT TAB_WRK6 BY STLTY STLNR STVKN UPOSZ ASCENDING.
+** レポート出力
+  PERFORM F_WRITE_REPORT.
+
+************************************************************************
+* END-OF-SELECITON
+************************************************************************
+END-OF-SELECTION.
+
+************************************************************************
+* TOP-OF-PAGE
+************************************************************************
+TOP-OF-PAGE.
+  PERFORM F_WRITE_HED.
+
+************************************************************************
+* ｻﾌﾞﾙｰﾁﾝ
+************************************************************************
+*&---------------------------------------------------------------------*
+*&      Form  F_READ_CHECK
+*&---------------------------------------------------------------------*
+*       データ存在チェック:メイン
+*----------------------------------------------------------------------*
+FORM F_READ_CHECK.
+** 変更マスタ
+  SELECT SINGLE *
+    FROM AENR
+    WHERE AENNR = P_AENNR.
+
+** 対象なしのケース
+  IF SY-SUBRC <> 0.
+    MESSAGE E005(ZB).
+  ENDIF.
+ENDFORM.                               " F_READ_CHECK
+
+*&---------------------------------------------------------------------*
+*&      Form  F_WRITE_HED
+*&---------------------------------------------------------------------*
+*       ヘッダ出力
+*----------------------------------------------------------------------*
+FORM F_WRITE_HED.
+  DATA: L_DATE  LIKE SY-DATUM,         "日付
+        L_DATEN(08) TYPE N.            "日付ワーク
+*--INS START- T5756 - 20150123 --*
+  DATA:
+    L_AESTX(15) TYPE C,                "ステータス
+    L_AETXT(40) TYPE C.                "タイトル
+*--INS END  - T5756 - 20150123 --*
+* 帳票ヘッダ
+**出力位置調整
+** 58*170 : xx1→001, xx2→081, xx3→138, xx4→150, xx5→161, xx6→167
+** 65*255 : xx1→001, xx2→120, xx3→225, xx4→237, xx5→246, xx6→252
+** 65*80  : xx1→001, xx2→020, xx3→050, xx4→062, xx5→071, xx6→077
+** 65*132 : xx1→001, xx2→055, xx3→100, xx4→112, xx5→123, xx6→129
+
+**  1行目
+  WRITE: /001 'REPORT-ID :',
+          013 SY-CPROG,                "プログラムID
+          158 'PAGE : ',
+          164 SY-PAGNO.                "ページNo.
+**  2行目～3行目
+  IF G_FLG_LST = ' '.
+    WRITE: /030 C_TITLE.               "帳票タイトル
+    WRITE: /030 C_TITLE1.
+    SKIP.
+  ELSE.
+    WRITE: /030 C_TITLE2.              "帳票タイトル
+    WRITE: /030 C_TITLE3.
+  ENDIF.
+**  以降 詳細のみ
+  CHECK G_FLG_LST <> ' '.
+**  5行目
+  SKIP.
+  L_DATEN = REC_WRK1-DATA01.
+  L_DATE  = L_DATEN.
+  WRITE: /005 '機種     :',
+          016 G_KISYU1,
+          058 '変更番号   :',
+          071 P_AENNR+0(06),
+*          090 '設変情報発行日 :',
+          090 '設変会議日 :    ',      "2001/07/11 CHG
+          108 L_DATE NO-ZERO.
+**  6行目
+  WRITE: /005 'PRODUCTS',
+          016 G_KISYU2,
+          058 'E.C.N.№',
+          090 'DATE'.
+*--INS START- T5756 - 20150123 --*
+  TRY.
+    CALL METHOD CL_ABAP_LIST_UTILITIES=>READ_FROM_DISPLAY_LAYOUT
+      EXPORTING
+        DISPLAY_DATA   = REC_WRK1-AESTX
+                                       "ステータス
+        DISPLAY_OFFSET = '0'
+        DISPLAY_LENGTH = '15'
+      IMPORTING
+        FIELD          = L_AESTX.      "ステータス
+    CATCH CX_PARAMETER_INVALID_RANGE.
+  ENDTRY.
+  TRY.
+    CALL METHOD CL_ABAP_LIST_UTILITIES=>READ_FROM_DISPLAY_LAYOUT
+      EXPORTING
+        DISPLAY_DATA   = REC_WRK1-AETXT
+                                       "タイトル
+        DISPLAY_OFFSET = '0'
+        DISPLAY_LENGTH = '40'
+      IMPORTING
+        FIELD          = L_AETXT.      "タイトル
+    CATCH CX_PARAMETER_INVALID_RANGE.
+  ENDTRY.
+*--INS END  - T5756 - 20150123 --*
+**  7行目
+  WRITE: /016 G_KISYU3,
+          057 '(ステータス :',
+*--UPD START- T5756 - 20150123 --*
+*          071 REC_WRK1-AESTX+0(15),
+          071 L_AESTX,
+*--UPD END  - T5756 - 20150123 --*
+          086 ')',
+          090 'タイトル       :',
+*--UPD START- T5756 - 20150123 --*
+*          108 REC_WRK1-AETXT.
+          108 L_AETXT.
+*--UPD END  - T5756 - 20150123 --*
+**  8行目
+  WRITE: /058 'STATUS',
+          090 'TITLE'.
+  SKIP 2.
+ENDFORM.                               "F_WRITE_HED
+
+*&---------------------------------------------------------------------*
+*&      Form  F_FIRST
+*&---------------------------------------------------------------------*
+*       初期処理
+*----------------------------------------------------------------------*
+FORM F_FIRST.
+** クリア: テーブル
+  CLEAR:
+    REC_WRK1,                          "設変情報用
+    TAB_WRK2,                          "設変記事用
+    TAB_WRK3,                          "BOM明細用
+    TAB_WRK4,                          "BOM副明細用
+    TAB_WRK5,                          "BOM用
+    TAB_WRK6,                          "副明細
+    TAB_WRK8,                          "詳細用(件数)
+    TAB_AUSP,                          "特性値、開始値用
+    TAB_DOUKI,                         "リスト用（同期設変）
+    TAB_KANREN,                        "リスト用（関連設変）
+    TAB_ZUMEN.                         "リスト用（関連図面）
+  REFRESH:
+    TAB_WRK2,                          "設変記事用
+    TAB_WRK3,                          "BOM明細用
+    TAB_WRK4,                          "BOM副明細用
+    TAB_WRK5,                          "BOM用
+    TAB_WRK6,                          "副明細
+    TAB_WRK8,                          "詳細用(件数)
+    TAB_AUSP,                          "特性値、開始値用
+    TAB_DOUKI,                         "リスト用（同期設変）
+    TAB_KANREN,                        "リスト用（関連設変）
+    TAB_ZUMEN.                         "リスト用（関連図面）
+** クリア: その他
+  CLEAR:
+    G_FLG_CHK,                         "フラグ
+    G_FLG_LST,                         "リスト種類
+    G_MAKTX,                           "品目名称
+    G_CNT_WRK2,                        "件数：変更記事
+    G_CNT_KK,                          "件数：機種
+    G_CNT_SN,                          "件数：同期設変
+    G_CNT_RN,                          "件数：関連設変
+    G_CNT_ZM,                          "件数：関連図面
+    G_CNT_MATNR,                       "件数：親品目SEQ
+    G_CNT_IDNRK,                       "件数：構成品目SEQ
+    G_ATINN24,                         "内部特性：機種
+    G_ATINN25,                         "内部特性：同期設変
+    G_ATINN26,                         "内部特性：関連設変
+    G_ATINN27,                         "内部特性：関連図面
+    G_KISYU1,                          "機種　編集データ1
+    G_KISYU2,                          "機種　編集データ2
+    G_KISYU3.                          "機種　編集データ3
+ENDFORM.                               " F_FIRST
+
+*&---------------------------------------------------------------------*
+*&      Form  F_READ_MAIN
+*&---------------------------------------------------------------------*
+*       データ抽出：メイン
+*----------------------------------------------------------------------*
+FORM F_READ_MAIN.
+** 変更マスタ
+  CLEAR: AENR-AETXT,
+         AENR-AENST.
+  SELECT SINGLE
+      AETXT                            "タイトル
+      AENST                            "変更番号ステータス
+      FROM AENR
+    INTO (AENR-AETXT, AENR-AENST)
+    WHERE AENNR = P_AENNR.
+** 変更マスタステータス
+  CLEAR T419T-AESTX.
+  SELECT SINGLE
+      AESTX                            "ステータス
+      FROM T419T
+    INTO (T419T-AESTX)
+    WHERE AENST = AENR-AENST
+    AND   SPRAS = 'JA'.
+** 内部特性 取得
+  PERFORM F_READ_AUSP.
+** 設変情報　編集
+  PERFORM F_EDT_WRK1.
+** 変更記事　取得
+  PERFORM F_GEN_WRK2.
+ENDFORM.                               " F_READ_MAIN
+
+*&---------------------------------------------------------------------*
+*&      Form  F_READ_CABN
+*&---------------------------------------------------------------------*
+*       内部特性　取得
+*----------------------------------------------------------------------*
+*      -->P_ATNAM    特性名
+*      <--P_ATINN    内部特性
+*----------------------------------------------------------------------*
+FORM F_READ_CABN USING    P_ATNAM
+                 CHANGING P_ATINN.
+  CLEAR CABN-ATINN.
+
+  SELECT
+      ATINN                            "内部特性
+      FROM CABN UP TO 1 ROWS
+    INTO (CABN-ATINN)
+    WHERE  ATNAM = P_ATNAM.
+  ENDSELECT.
+
+  P_ATINN = CABN-ATINN.
+
+** 内部特性　セーブ
+  CASE P_ATNAM.
+    WHEN C_ATNAM24.
+      G_ATINN24 = P_ATINN.
+    WHEN C_ATNAM25.
+      G_ATINN25 = P_ATINN.
+    WHEN C_ATNAM26.
+      G_ATINN26 = P_ATINN.
+    WHEN C_ATNAM27.
+      G_ATINN27 = P_ATINN.
+    WHEN OTHERS.
+  ENDCASE.
+ENDFORM.                               " F_READ_CABN
+
+*&---------------------------------------------------------------------*
+*&      Form  F_READ_AUSP
+*&---------------------------------------------------------------------*
+*       特性値　取得
+*----------------------------------------------------------------------*
+FORM F_READ_AUSP.
+  DATA: L_FLD(20)  TYPE C,             "フィールド　シンボル用
+        L_IDX(02)  TYPE N.             "インデックス
+  FIELD-SYMBOLS:
+        <F1>       TYPE ANY.
+
+** 内部特性　セット
+  DO C_ATNAM_MAX TIMES.
+    L_IDX = SY-INDEX.
+    CONCATENATE 'C_ATNAM' L_IDX INTO L_FLD.
+    ASSIGN (L_FLD) TO <F1>.            "C_ATNAMXX : ZPP_XX
+    PERFORM F_READ_CABN USING <F1> CHANGING S_ATINN-LOW.
+
+    S_ATINN-SIGN   = 'I'.
+    S_ATINN-OPTION = 'EQ'.
+    APPEND S_ATINN.
+    CLEAR  S_ATINN.
+  ENDDO.
+** 内部特性　取得
+  CLEAR: AUSP-ATINN,
+         AUSP-ATWRT,
+         AUSP-ATFLV.
+  SELECT
+      ATINN                            "内部特性
+      ATWRT                            "特性値
+      ATFLV                            "開始値
+      FROM AUSP
+  INTO CORRESPONDING FIELDS OF TABLE TAB_AUSP
+    WHERE  OBJEK = P_AENNR
+    AND    ATINN IN S_ATINN
+    AND    KLART = '025'.
+** CAWNT:特性値取得
+  LOOP AT TAB_AUSP.
+    LOOP AT S_ATINN WHERE LOW = TAB_AUSP-ATINN.
+      L_IDX = SY-TABIX.
+    ENDLOOP.
+** (対象INDEX : 04, 07 - 19)
+    CHECK L_IDX = 04 OR ( L_IDX >= 07 AND L_IDX <= 19 ).
+** (特性値)
+    CLEAR: CAWN-ATZHL,
+           CAWN-ADZHL.
+    SELECT
+        ATZHL                          "内部カウンタ
+        ADZHL                          "アーカイブ用内部カウンタ
+        FROM CAWN UP TO 1 ROWS
+      INTO (CAWN-ATZHL, CAWN-ADZHL)
+      WHERE  ATINN = TAB_AUSP-ATINN
+      AND    ATWRT = TAB_AUSP-ATWRT.
+    ENDSELECT.
+    CHECK SY-SUBRC = 0.
+** (特性値テキスト)
+    CLEAR: CAWNT-ATWTB.
+    SELECT SINGLE
+        ATWTB                          "特性値
+        FROM CAWNT
+      INTO (CAWNT-ATWTB)
+      WHERE  ATINN = TAB_AUSP-ATINN
+      AND    ATZHL = CAWN-ATZHL
+      AND    SPRAS = 'JA'
+      AND    ADZHL = CAWN-ADZHL.
+    CHECK SY-SUBRC = 0.
+** (テーブル更新)
+    TAB_AUSP-ATWTB = CAWNT-ATWTB.
+    MODIFY TAB_AUSP.
+  ENDLOOP.
+ENDFORM.                               " F_READ_AUSP
+
+*&---------------------------------------------------------------------*
+*&      Form  F_EDT_WRK1
+*&---------------------------------------------------------------------*
+*       設変情報　編集
+*----------------------------------------------------------------------*
+FORM F_EDT_WRK1.
+  DATA: L_FLD(20)  TYPE C,             "フィールド　シンボル用
+        L_IDX(02)  TYPE N.             "インデックス
+  FIELD-SYMBOLS:
+        <F1>       TYPE ANY.
+
+** 編集
+  REC_WRK1-AENNR = P_AENNR.
+  REC_WRK1-AETXT = AENR-AETXT.
+  REC_WRK1-AESTX = T419T-AESTX.
+** 特性値、開始値セット
+  LOOP AT TAB_AUSP.
+    LOOP AT S_ATINN WHERE LOW = TAB_AUSP-ATINN.
+      L_IDX = SY-TABIX.
+    ENDLOOP.
+** (対象INDEX : 01 - 23)
+    CHECK L_IDX <= C_ATNAM_MAX2.
+    CONCATENATE 'REC_WRK1-DATA' L_IDX INTO L_FLD.
+    ASSIGN (L_FLD) TO <F1>.            "REC_WRK1-DATAXX
+** (INDEX: 01, 20, 21)
+    IF L_IDX = 01 OR L_IDX = 20 OR L_IDX = 21.
+      <F1> = TAB_AUSP-ATFLV.
+    ELSE.
+** (INDEX: 02, 03, 05, 06, 22, 23)
+      IF  L_IDX = '02' OR L_IDX = '03' OR L_IDX = '05' OR
+          L_IDX = '06' OR L_IDX = '22' OR L_IDX = '23'.
+        <F1> = TAB_AUSP-ATWRT.
+      ELSE.
+** (INDEX: 04, 07 - 19)
+        <F1> = TAB_AUSP-ATWTB.
+      ENDIF.
+    ENDIF.
+  ENDLOOP.
+ENDFORM.                               " F_EDT_WRK1
+
+*&---------------------------------------------------------------------*
+*&      Form  F_GEN_WRK2
+*&---------------------------------------------------------------------*
+*       変更記事　取得
+*----------------------------------------------------------------------*
+FORM F_GEN_WRK2.
+  DATA:  L_NAME LIKE THEAD-TDNAME.
+
+  CONCATENATE SY-MANDT P_AENNR INTO L_NAME.
+
+  CALL FUNCTION 'READ_TEXT'
+       EXPORTING
+            ID                      = 'AENR'
+            LANGUAGE                = 'J'
+            NAME                    = L_NAME
+            OBJECT                  = 'CHANGE'
+       TABLES
+            LINES                   = TAB_WRK2
+       EXCEPTIONS
+            ID                      = 1
+            LANGUAGE                = 2
+            NAME                    = 3
+            NOT_FOUND               = 4
+            OBJECT                  = 5
+            REFERENCE_CHECK         = 6
+            WRONG_ACCESS_TO_ARCHIVE = 7
+            OTHERS                  = 8.
+ENDFORM.                               " F_GEN_WRK2
+
+*&---------------------------------------------------------------------*
+*&      Form  F_READ_DATA2
+*&---------------------------------------------------------------------*
+*       データ抽出：詳細用
+*----------------------------------------------------------------------*
+FORM F_READ_DATA2.
+  DATA:  L_CNT_ADD    TYPE I,          "件数カウント: 追加
+         L_CNT_DEL    TYPE I,          "件数カウント: 削除
+         L_FLG_STLKN(01)  TYPE C,      "明細ノード番号 フラグ
+         L_STLKN      LIKE STAS-STLKN, "明細ノード番号 ワーク
+         L_SAVE_STLKN LIKE STAS-STLKN, "明細ノード番号 セーブ
+         L_STR_ADD    LIKE STPO-STLKN, "追加 - 最初のデータ
+         L_STR_DEL    LIKE STPO-STLKN, "削除 - 最初のデータ
+         L_END_ADD    LIKE STPO-STLKN, "追加 - 最後のデータ
+         L_END_DEL    LIKE STPO-STLKN. "削除 - 最後のデータ
+
+** BOM明細選択
+  SELECT
+      STLTY STLNR STLKN              "BOMカテゴリ 部品表 明細ノード番号
+      LKENZ STVKN                    "削除フラグ BOM明細の継承ノード番号
+      FROM STAS
+    INTO CORRESPONDING FIELDS OF TABLE TAB_WRK3
+    WHERE AENNR = P_AENNR
+    AND   STLTY = 'M'
+    ORDER BY STLTY STLNR STVKN STLKN ASCENDING.
+
+** 詳細用ワーク作成
+
+  LOOP AT TAB_WRK3.
+    L_STLKN = TAB_WRK3-STLKN.
+** (親品目　取得)
+    AT NEW STLNR.
+      CLEAR: MAST-MATNR.
+      SELECT SINGLE
+          MATNR                        "品目コード
+          FROM MAST
+        INTO (MAST-MATNR)
+        WHERE STLNR = TAB_WRK3-STLNR.
+*      PERFORM F_READ_MAKT USING TAB_WRK5-MATNR  CHANGING G_MAKTX. 20170525 Shin
+      PERFORM F_READ_MAKT USING MAST-MATNR  CHANGING G_MAKTX.
+    ENDAT.
+** (クリア)
+    AT NEW STVKN.
+      CLEAR: L_CNT_ADD, L_CNT_DEL, L_FLG_STLKN,
+             L_STR_ADD, L_STR_DEL, L_END_ADD, L_END_DEL.
+      L_SAVE_STLKN = L_STLKN.
+    ENDAT.
+** (データセーブと件数カウント)
+    IF TAB_WRK3-STLKN <> L_SAVE_STLKN.
+      L_FLG_STLKN = 'Y'.
+    ENDIF.
+    IF TAB_WRK3-LKENZ <> ' ' AND L_STR_DEL = 0.
+      L_STR_DEL = TAB_WRK3-STLKN.      "初回　変更・削除用
+    ENDIF.
+    IF TAB_WRK3-LKENZ =  ' ' AND L_STR_ADD = 0.
+      L_STR_ADD = TAB_WRK3-STLKN.      "初回　追加用
+    ENDIF.
+    IF TAB_WRK3-LKENZ = ' '.
+      L_CNT_ADD = L_CNT_ADD + 1.
+      L_END_ADD = TAB_WRK3-STLKN.      "最後　変更・追加用
+    ELSE.
+      L_CNT_DEL = L_CNT_DEL + 1.
+      L_END_DEL = TAB_WRK3-STLKN.      "最後　削除用
+    ENDIF.
+** (テーブル：詳細用ワーク作成)
+    AT END OF STVKN.
+      CHECK L_CNT_ADD > 0 OR L_CNT_DEL > 0.
+** (追加・削除・変更の判定とBOM明細・副明細 取得)
+      IF L_CNT_ADD = L_CNT_DEL.        "変更のケース
+        CHECK L_FLG_STLKN = 'Y'.       "明細ノード番号同一は対象外
+        PERFORM F_GET_BOM  USING 'X' L_STR_DEL.
+        PERFORM F_GET_BOM  USING ' ' L_END_ADD.
+      ELSE.
+        IF L_CNT_ADD > L_CNT_DEL.      "追加のケース
+          PERFORM F_GET_BOM  USING ' ' L_STR_ADD.
+        ELSE.                          "削除のケース
+          PERFORM F_GET_BOM  USING 'X' L_END_DEL.
+        ENDIF.
+      ENDIF.
+    ENDAT.
+  ENDLOOP.
+ENDFORM.                               " F_READ_DATA2
+
+*&---------------------------------------------------------------------*
+*&      Form  F_GET_BOM
+*&---------------------------------------------------------------------*
+*       データ抽出：BOM明細選択・副明細
+*----------------------------------------------------------------------*
+*      -->P_FLG_OPE  処理フラグ
+*      -->P_STLKN    BOM明細ノード番号
+*----------------------------------------------------------------------*
+FORM F_GET_BOM  USING P_FLG_OPE P_STLKN.
+** テーブル：BOM用編集 1
+  TAB_WRK5-STLTY = TAB_WRK3-STLTY.
+  TAB_WRK5-STLNR = TAB_WRK3-STLNR.
+  TAB_WRK5-STVKN = TAB_WRK3-STVKN.
+  TAB_WRK5-STLKN = P_STLKN.
+  TAB_WRK5-LKENZ = P_FLG_OPE.
+** BOM明細
+  CLEAR: STPO-STLTY, STPO-STPOZ, STPO-POSNR, STPO-IDNRK,
+         STPO-MENGE, STPO-UPSKZ, STPO-POTX1.
+  SELECT
+     STPOZ POSNR IDNRK                 "内部カウンタ BOM明細 構成品目
+     MENGE UPSKZ POTX1                 "構成品目数量 副明細区分 明細TXT
+      FROM STPO UP TO 1 ROWS
+    INTO (STPO-STPOZ, STPO-POSNR, STPO-IDNRK,
+          STPO-MENGE, STPO-UPSKZ, STPO-POTX1)
+    WHERE STLTY = TAB_WRK3-STLTY
+    AND   STLNR = TAB_WRK3-STLNR
+    AND   STLKN = P_STLKN.
+  ENDSELECT.
+** テーブル：BOM用編集 2
+  TAB_WRK5-STPOZ = STPO-STPOZ.
+  TAB_WRK5-POSNR = STPO-POSNR.
+  TAB_WRK5-IDNRK = STPO-IDNRK.
+  TAB_WRK5-MENGE = STPO-MENGE.
+  TAB_WRK5-POTX1 = STPO-POTX1.
+  TAB_WRK5-UPSKZ = STPO-UPSKZ.
+  TAB_WRK5-MATNR = MAST-MATNR.
+  TAB_WRK5-MAKTX = G_MAKTX.
+** 品目テキスト　取得
+  PERFORM F_READ_MAKT USING TAB_WRK5-IDNRK  CHANGING TAB_WRK5-MAKTX1.
+  APPEND TAB_WRK5.
+  CLEAR  TAB_WRK5.
+** 副明細 有無判定
+  CHECK STPO-UPSKZ <> ' '.
+** 副明細
+  CLEAR:   TAB_WRK4.
+  REFRESH: TAB_WRK4.
+
+  TAB_WRK4-STLTY = TAB_WRK3-STLTY.
+  TAB_WRK4-STLNR = TAB_WRK3-STLNR.
+  TAB_WRK4-STLKN = P_STLKN.
+  TAB_WRK4-STPOZ = STPO-STPOZ.
+
+  CALL FUNCTION 'GET_STPU'
+       EXPORTING
+            ALL             = 'X'
+            SET             = 'X'
+       TABLES
+            WA              = TAB_WRK4
+       EXCEPTIONS
+            CALL_INVALID    = 1
+            END_OF_TABLE    = 2
+            GET_WITHOUT_SET = 3
+            KEY_INCOMPLETE  = 4
+            NO_RECORD_FOUND = 5
+            OTHERS          = 6.
+** 副明細なし
+  CHECK SY-SUBRC = 0.
+** 副明細あり
+  LOOP AT TAB_WRK4.
+    TAB_WRK6-STLTY = TAB_WRK3-STLTY.
+    TAB_WRK6-STLNR = TAB_WRK3-STLNR.
+    TAB_WRK6-STVKN = TAB_WRK3-STVKN.
+    TAB_WRK6-STLKN = P_STLKN.
+    TAB_WRK6-LKENZ = P_FLG_OPE.
+    TAB_WRK6-UPOSZ = TAB_WRK4-UPOSZ.
+    TAB_WRK6-EBORT = TAB_WRK4-EBORT.
+    TAB_WRK6-UPMNG = TAB_WRK4-UPMNG.
+    APPEND TAB_WRK6.
+    CLEAR TAB_WRK6.
+  ENDLOOP.
+ENDFORM.                               " F_GET_BOM
+
+*&---------------------------------------------------------------------*
+*&      Form  F_READ_MAKT
+*&---------------------------------------------------------------------*
+*       明細：品目テキスト　取得
+*----------------------------------------------------------------------*
+*      -->P_MATNR    品目コード
+*      <--P_MAKTX    品目テキスト
+*----------------------------------------------------------------------*
+FORM F_READ_MAKT USING    P_MATNR
+                 CHANGING P_MAKTX.
+  CLEAR MAKT-MAKTX.
+
+  SELECT SINGLE
+      MAKTX                            "品目テキスト
+      FROM MAKT
+    INTO (MAKT-MAKTX)
+    WHERE  MATNR = P_MATNR
+    AND    SPRAS = 'JA'.
+
+  P_MAKTX = MAKT-MAKTX.
+ENDFORM.                               " F_READ_MAKT
+
+*&---------------------------------------------------------------------*
+*&      Form  F_GET_COUNT
+*&---------------------------------------------------------------------*
+*       各種件数  取得
+*----------------------------------------------------------------------*
+FORM F_GET_COUNT.
+  DATA: L_COUNT  TYPE I.               "テーブル件数
+
+** 件数取得：変更記事
+  DESCRIBE TABLE TAB_WRK2 LINES G_CNT_WRK2.
+
+** 件数取得：機種、同期設変、他
+  LOOP AT TAB_AUSP.
+    CASE TAB_AUSP-ATINN.
+      WHEN G_ATINN24.
+        G_CNT_KK = G_CNT_KK + 1.
+      WHEN G_ATINN25.
+        G_CNT_SN = G_CNT_SN + 1.
+      WHEN G_ATINN26.
+        G_CNT_RN = G_CNT_RN + 1.
+      WHEN G_ATINN27.
+        G_CNT_ZM = G_CNT_ZM + 1.
+      WHEN OTHERS.
+    ENDCASE.
+  ENDLOOP.
+
+** ソート (親品番 > BOMカテゴリ > 部品表 > BOM明細の継承ノード番号)
+  SORT TAB_WRK5 BY MATNR STLTY STLNR STVKN ASCENDING.
+** 件数取得：親品目毎の明細
+  CLEAR L_COUNT.
+  LOOP AT TAB_WRK5.
+    AT NEW STVKN.
+      L_COUNT = L_COUNT + 1.
+    ENDAT.
+    AT END OF MATNR.
+      TAB_WRK8-MATNR = TAB_WRK5-MATNR.
+      TAB_WRK8-COUNT = L_COUNT.
+      APPEND TAB_WRK8.
+      CLEAR: TAB_WRK8, L_COUNT.
+    ENDAT.
+  ENDLOOP.
+ENDFORM.                               " F_GET_COUNT
+
+*&---------------------------------------------------------------------*
+*&      Form  F_WRITE_REPORT
+*&---------------------------------------------------------------------*
+*       レポート出力
+*----------------------------------------------------------------------*
+FORM F_WRITE_REPORT.
+** 機種・同期設変・関連設変・関連図面編集
+  PERFORM F_EDT_KISYU.
+  PERFORM F_EDT_DOUKI.
+  PERFORM F_EDT_KANREN.
+  PERFORM F_EDT_ZUMEN.
+
+** 設変情報
+  SET BLANK LINES ON.
+  PERFORM F_WRITE_DETAIL.
+
+** 詳細
+  G_FLG_LST = 'SYO'.
+  PERFORM F_EDT_KISYU.                 "機種　詳細用編集
+  NEW-PAGE.
+
+  CLEAR REC_LST.
+  LOOP AT TAB_WRK5.
+    MOVE-CORRESPONDING TAB_WRK5 TO REC_WRK5.
+** (親品目)
+    AT NEW MATNR.
+      PERFORM F_WRITE_MATNR.
+      CLEAR G_CNT_IDNRK.
+    ENDAT.
+** (明細)
+    PERFORM F_WRITE_DETAIL2.
+** (出力)
+    AT END OF STVKN.
+      G_CNT_IDNRK = G_CNT_IDNRK + 1.
+      WRITE G_CNT_MATNR     TO REC_LST-CNT1 NO-ZERO.
+      REC_LST-HIFUN  = '-'.
+      WRITE G_CNT_IDNRK     TO REC_LST-CNT2 NO-ZERO.
+** #1500282 chg
+*      WRITE: /001 REC_LST.
+      WRITE: /001 REC_LST+00(23).
+      WRITE:  024 REC_LST+23(25).      "旧品目
+      WRITE:  049 REC_LST+48(41).
+      WRITE:  090 REC_LST+89(25).      "新品目
+      WRITE:  115 REC_LST+114(48).
+*
+      CLEAR REC_LST.
+      PERFORM F_WRITE_DETAIL3.         "副明細　出力
+    ENDAT.
+** (親品目)
+    AT END OF MATNR.
+      SKIP 2.
+    ENDAT.
+  ENDLOOP.
+** (詳細:フッター)
+  PERFORM F_WRITE_FOOTER.
+
+ENDFORM.                               " F_WRITE_REPORT
+
+*&---------------------------------------------------------------------*
+*&      Form  F_WRITE_DETAIL
+*&---------------------------------------------------------------------*
+*       レポート　：　明細編集・出力 (設計情報)
+*----------------------------------------------------------------------*
+FORM F_WRITE_DETAIL.
+*--INS START- T5756 - 20150123 --*
+  DATA:
+    L_AESTX(15)  TYPE C,               "ステータス
+    L_AETXT(40)  TYPE C,               "タイトル
+    L_TDLINE(132) TYPE C.               "テキスト行
+*--INS END  - T5756 - 20150123 --*
+** 左側
+  WRITE: /005 '機種     :',
+          016 G_KISYU1+0(26),          "機種
+          048 '変更番号   :',
+          061 REC_WRK1-AENNR+0(06).    "変更番号
+  WRITE: /005 'PRODUCTS',
+          048 'E.C.N.№'.
+*--INS START- T5756 - 20150123 --*
+  TRY.
+    CALL METHOD CL_ABAP_LIST_UTILITIES=>READ_FROM_DISPLAY_LAYOUT
+      EXPORTING
+        DISPLAY_DATA   = REC_WRK1-AESTX
+                                       "ステータス
+        DISPLAY_OFFSET = '0'
+        DISPLAY_LENGTH = '15'
+      IMPORTING
+        FIELD          = L_AESTX.      "ステータス
+    CATCH CX_PARAMETER_INVALID_RANGE.
+  ENDTRY.
+  TRY.
+    CALL METHOD CL_ABAP_LIST_UTILITIES=>READ_FROM_DISPLAY_LAYOUT
+      EXPORTING
+        DISPLAY_DATA   = REC_WRK1-AETXT
+                                       "タイトル
+        DISPLAY_OFFSET = '0'
+        DISPLAY_LENGTH = '40'
+      IMPORTING
+        FIELD          = L_AETXT.      "タイトル
+    CATCH CX_PARAMETER_INVALID_RANGE.
+  ENDTRY.
+*--INS END  - T5756 - 20150123 --*
+  WRITE: /047 '(ステータス :',
+*--UPD START- T5756 - 20150123 --*
+*          061 REC_WRK1-AESTX+0(15),    "ステータス
+          061 L_AESTX,                 "ステータス
+*--UPD END  - T5756 - 20150123 --*
+          077 ')'.
+  WRITE: /048 'STATUS'.
+  SKIP.
+  WRITE: /005 'タイトル :',
+*--UPD START- T5756 - 20150123 --*
+*          016 REC_WRK1-AETXT.          "タイトル
+          016 L_AETXT.                 "タイトル
+*--UPD END  - T5756 - 20150123 --*
+  WRITE: /005 'TITLE'.
+** 同期設変
+  LOOP AT TAB_DOUKI.
+    CASE SY-TABIX.
+      WHEN 01.
+        WRITE: /005 '同期設変           :'.
+      WHEN 02.
+        WRITE: /005 'SIMULTANEOUS E.C.N.'.
+      WHEN OTHERS.
+        WRITE: /005 ' '.
+    ENDCASE.
+    WRITE   027 TAB_DOUKI-DATA.        "同期設変
+** (全件の場合)
+    IF P_GRP2 <> ' ' AND SY-PAGNO = 1 AND SY-LINNO = 57.
+      PERFORM F_WRITE_RIGHT.           "右側出力
+      NEW-PAGE.
+    ENDIF.
+  ENDLOOP.
+** (0件、1行の場合)
+  IF G_CNT_SN = 0.
+    WRITE: /005 '同期設変           :'.
+  ENDIF.
+  IF P_GRP1 <> ' ' OR G_CNT_SN < 9.
+    WRITE: /005 'SIMULTANEOUS E.C.N.'.
+  ENDIF.
+** 関連設変
+  LOOP AT TAB_KANREN.
+    CASE SY-TABIX.
+      WHEN 01.
+        WRITE: /005 '関連設変           :'.
+      WHEN 02.
+        WRITE: /005 'RELATED E.C.N.      '.
+      WHEN OTHERS.
+        WRITE: /005 ' '.
+    ENDCASE.
+    WRITE   027 TAB_KANREN-DATA.       "関連設変
+** (全件の場合)
+    IF P_GRP2 <> ' ' AND SY-PAGNO = 1 AND SY-LINNO = 57.
+      PERFORM F_WRITE_RIGHT.           "右側出力
+      NEW-PAGE.
+    ENDIF.
+  ENDLOOP.
+** (0件、1行の場合)
+  IF G_CNT_RN = 0.
+    WRITE: /005 '関連設変           :'.
+  ENDIF.
+  IF P_GRP1 <> ' ' OR G_CNT_RN < 9.
+    WRITE: /005 'RELATED E.C.N.      '.
+  ENDIF.
+** 関連記事
+** (全件の場合)
+  IF P_GRP2 <> ' ' AND SY-PAGNO = 1 AND SY-LINNO = 56.
+    PERFORM F_WRITE_RIGHT.             "右側出力
+    NEW-PAGE.
+  ELSE.
+    SKIP.
+  ENDIF.
+
+  LOOP AT TAB_WRK2.
+    CASE SY-TABIX.
+      WHEN 01.
+        WRITE: /005 '設変記事 :'.
+      WHEN 02.
+        WRITE: /005 'CONTENTS'.
+      WHEN OTHERS.
+        WRITE: /005 ' '.
+    ENDCASE.
+*--UPD START- T5756 - 20150123 --*
+*    WRITE   016 TAB_WRK2-TDLINE+0(72).
+    TRY.
+      CALL METHOD CL_ABAP_LIST_UTILITIES=>READ_FROM_DISPLAY_LAYOUT
+        EXPORTING
+          DISPLAY_DATA   = TAB_WRK2-TDLINE
+                                       "テキスト行
+          DISPLAY_OFFSET = '0'
+          DISPLAY_LENGTH = '132'
+        IMPORTING
+          FIELD          = L_TDLINE.   "テキスト行
+      CATCH CX_PARAMETER_INVALID_RANGE.
+    ENDTRY.
+    WRITE   016 L_TDLINE.
+*--UPD END  - T5756 - 20150123 --*
+** (全件の場合)
+    IF P_GRP2 <> ' ' AND SY-PAGNO = 1 AND SY-LINNO = 57.
+      PERFORM F_WRITE_RIGHT.           "右側出力
+      NEW-PAGE.
+    ENDIF.
+** (要約の場合)
+    IF P_GRP1 <> ' ' AND SY-TABIX = 20.
+      EXIT.
+    ENDIF.
+  ENDLOOP.
+** (0件、1行の場合)
+  IF G_CNT_WRK2 = 0.
+    WRITE: /005 '設変記事 :'.
+  ENDIF.
+  IF G_CNT_WRK2 < 2.
+    WRITE: /005 'CONTENTS'.
+  ENDIF.
+** 要約の場合
+  IF P_GRP1 <> ' ' AND G_CNT_WRK2 > 20.
+    WRITE: /016 '(TO BE CONTINUED)'.
+  ENDIF.
+** 関連図面
+** (全件の場合)
+  IF P_GRP2 <> ' ' AND SY-PAGNO = 1 AND SY-LINNO = 56.
+    PERFORM F_WRITE_RIGHT.             "右側出力
+    NEW-PAGE.
+  ELSE.
+    SKIP.
+  ENDIF.
+
+  LOOP AT TAB_ZUMEN.
+    CASE SY-TABIX.
+      WHEN 01.
+        WRITE: /005 '関連図面           :'.
+      WHEN 02.
+        WRITE: /005 'RELATED DRAWINGS    '.
+      WHEN OTHERS.
+        WRITE: /005 ' '.
+    ENDCASE.
+    WRITE   027 TAB_ZUMEN-DATA.        "関連図面
+** (全件の場合)
+    IF P_GRP2 <> ' ' AND SY-PAGNO = 1 AND SY-LINNO = 57.
+      PERFORM F_WRITE_RIGHT.           "右側出力
+      NEW-PAGE.
+    ENDIF.
+  ENDLOOP.
+** (0件、1行の場合)
+  IF G_CNT_ZM = 0.
+    WRITE: /005 '関連図面           :'.
+  ENDIF.
+  IF G_CNT_ZM < 5.
+    WRITE: /005 'RELATED DRAWINGS    '.
+  ENDIF.
+** 右側の出力（要約の場合、全件で左が1頁内）
+  IF G_FLG_CHK = ' '.
+    PERFORM F_WRITE_RIGHT.             "右側出力
+  ENDIF.
+ENDFORM.                               " F_WRITE_DETAIL
+
+*&---------------------------------------------------------------------*
+*&      Form  F_WRITE_RIGHT
+*&---------------------------------------------------------------------*
+*       レポート　：　明細編集・出力 (設計情報：右側)
+*----------------------------------------------------------------------*
+FORM F_WRITE_RIGHT.
+  DATA: L_DATE LIKE SY-DATUM,          "日付
+        L_DATEN(08) TYPE N,            "日付ワーク
+        L_COST(06)  TYPE P DECIMALS 2, "コスト等
+        L_DATA(30)  TYPE C,            "各種データ
+        L_DATA2(30) TYPE C,            "各種データ 2
+        L_FLD(20)   TYPE C,            "フィールド　シンボル用
+        L_IDX(02)   TYPE N.            "インデックス
+*--INS START- T5756 - 20150123 --*
+  DATA:
+    L_DATA22(3) TYPE C,                "単位コスト2
+    L_DATA23(3) TYPE C.                "金型改造費2
+*--INS END  - T5756 - 20150123 --*
+  FIELD-SYMBOLS:
+        <F1>       TYPE ANY,
+        <F2>       TYPE ANY,
+        <F3>       TYPE ANY.
+
+  G_FLG_CHK = 'Y'.
+  CLEAR L_COST.
+** 右側へスキップ
+  SKIP TO LINE 02.
+
+  DO 21 TIMES.
+** (シンボル割当)
+    L_IDX = SY-INDEX.
+    CONCATENATE 'C_TITLE' L_IDX '1' INTO L_FLD.
+    ASSIGN (L_FLD) TO <F1>.            "G_TITLEXX1
+    CONCATENATE 'C_TITLE' L_IDX '2' INTO L_FLD.
+    ASSIGN (L_FLD) TO <F2>.            "G_TITLEXX2
+    CONCATENATE 'REC_WRK1-DATA' L_IDX INTO L_FLD.
+    ASSIGN (L_FLD) TO <F3>.            "REC_WRK1-DATAXX
+** (データ編集)
+    CASE SY-INDEX.
+      WHEN 01.
+        L_DATEN = <F3>.
+        L_DATE = L_DATEN.
+        WRITE L_DATE TO L_DATA NO-ZERO.
+      WHEN 20.
+        L_COST = <F3>.
+        WRITE L_COST TO L_DATA+0(13) NO-ZERO.
+        IF L_COST <> 0.
+*--UPD START- T5756 - 20150123 --*
+*          CONCATENATE '/ 1PCS (' REC_WRK1-DATA22+0(03) ')' INTO L_DATA2.
+          TRY.
+            CALL METHOD CL_ABAP_LIST_UTILITIES=>READ_FROM_DISPLAY_LAYOUT
+              EXPORTING
+                DISPLAY_DATA   = REC_WRK1-DATA22
+                                       "単位コスト2
+                DISPLAY_OFFSET = '0'
+                DISPLAY_LENGTH = '3'
+              IMPORTING
+                FIELD          = L_DATA22.
+                                       "単位コスト2
+            CATCH CX_PARAMETER_INVALID_RANGE.
+          ENDTRY.
+          CONCATENATE '/ 1PCS (' L_DATA22 ')' INTO L_DATA2.
+*--UPD END  - T5756 - 20150123 --*
+        ENDIF.
+      WHEN 21.
+        L_COST = <F3>.
+        WRITE L_COST TO L_DATA+0(13) NO-ZERO.
+        IF L_COST <> 0.
+*--UPD START- T5756 - 20150123 --*
+*          CONCATENATE '       (' REC_WRK1-DATA23+0(03) ')' INTO L_DATA2.
+          TRY.
+            CALL METHOD CL_ABAP_LIST_UTILITIES=>READ_FROM_DISPLAY_LAYOUT
+              EXPORTING
+                DISPLAY_DATA   = REC_WRK1-DATA23
+                                       "金型改造費2
+                DISPLAY_OFFSET = '0'
+                DISPLAY_LENGTH = '3'
+              IMPORTING
+                FIELD          = L_DATA23.
+                                       "金型改造費2
+            CATCH CX_PARAMETER_INVALID_RANGE.
+          ENDTRY.
+          CONCATENATE '       (' L_DATA23 ')' INTO L_DATA2.
+*--UPD END  - T5756 - 20150123 --*
+        ENDIF.
+      WHEN OTHERS.
+        L_DATA = <F3>+0(30).
+    ENDCASE.
+** (出力)
+    WRITE: /100 <F1>,
+            121 L_DATA.
+    IF L_COST <> 0.
+      WRITE:  134 L_DATA2.
+    ENDIF.
+    WRITE: /100 <F2>.
+** (空白行)
+    CASE SY-INDEX.
+      WHEN 05 OR 08 OR 13 OR 14 OR 15 OR 16 OR 17 OR 20 OR 21.
+      WHEN OTHERS.
+        SKIP.
+    ENDCASE.
+  ENDDO.
+ENDFORM.                               " F_WRITE_RIGHT
+
+*&---------------------------------------------------------------------*
+*&      Form  F_EDT_KISYU
+*&---------------------------------------------------------------------*
+*       レポート　：　明細編集・出力 (機種)
+*----------------------------------------------------------------------*
+FORM F_EDT_KISYU.
+  DATA: L_FLD(20)  TYPE C,             "フィールド　シンボル用
+        L_IDX(01)  TYPE N,             "インデックス 1 - 3
+        L_IDX2(01) TYPE N.             "インデックス 1 - 3
+  FIELD-SYMBOLS:
+        <F1>       TYPE ANY.
+
+  CLEAR: G_KISYU1, G_KISYU2, G_KISYU3, L_IDX.
+  L_IDX2 = 1.
+
+  LOOP AT TAB_AUSP WHERE ATINN = G_ATINN24.
+    L_IDX = L_IDX + 1.
+** (シンボル割当)
+    CONCATENATE 'G_KISYU' L_IDX2 INTO L_FLD.
+    ASSIGN (L_FLD) TO <F1>.            "G_KISYUX
+** (データ編集)
+    IF L_IDX = 2 OR L_IDX = 3.
+      CONCATENATE <F1> ', ' INTO <F1>.
+    ENDIF.
+    CONCATENATE <F1> TAB_AUSP-ATWRT INTO <F1>.
+** (設変情報　1個まで)
+    IF G_FLG_LST = ' ' AND L_IDX = 1.
+      EXIT.
+    ENDIF.
+** (詳細情報　3行)
+    IF L_IDX = 3.
+      L_IDX = 0.
+      L_IDX2 = L_IDX2 + 1.
+    ENDIF.
+  ENDLOOP.
+** 続きの判定
+  IF ( G_FLG_LST =  ' ' AND G_CNT_KK > 2 ) OR
+     ( G_FLG_LST <> ' ' AND G_CNT_KK > 9 ).
+    CONCATENATE <F1> ',ETC.' INTO <F1>.
+  ENDIF.
+ENDFORM.                               " F_EDT_KISYU
+
+*&---------------------------------------------------------------------*
+*&      Form  F_EDT_DOUKI
+*&---------------------------------------------------------------------*
+*       レポート　：　明細編集・出力 (同期設変)
+*----------------------------------------------------------------------*
+FORM F_EDT_DOUKI.
+  DATA: L_IDX(01)   TYPE N,            "インデックス 1 - 8
+        L_DATA(68)  TYPE C,            "編集データ
+        L_CNT_TABLE TYPE I.            "テーブルカウント
+*--INS START- T5756 - 20150123 --*
+  DATA: L_ATWRT(10)  TYPE C.           "特性値
+*--INS END  - T5756 - 20150123 --*
+
+  CLEAR L_IDX.
+  LOOP AT TAB_AUSP WHERE ATINN = G_ATINN25.
+    L_IDX = L_IDX + 1.
+** (データ編集)
+    IF L_IDX > 1.
+      CONCATENATE L_DATA ', ' INTO L_DATA.
+    ENDIF.
+*--UPD START- T5756 - 20150123 --*
+*    CONCATENATE L_DATA TAB_AUSP-ATWRT+0(10) INTO L_DATA.
+    TRY.
+      CALL METHOD CL_ABAP_LIST_UTILITIES=>READ_FROM_DISPLAY_LAYOUT
+        EXPORTING
+          DISPLAY_DATA   = TAB_AUSP-ATWRT
+                                       "特性値
+          DISPLAY_OFFSET = '0'
+          DISPLAY_LENGTH = '10'
+        IMPORTING
+          FIELD          = L_ATWRT.    "特性値
+      CATCH CX_PARAMETER_INVALID_RANGE.
+    ENDTRY.
+    CONCATENATE L_DATA L_ATWRT INTO L_DATA.
+*--UPD END  - T5756 - 20150123 --*
+** (詳細情報　1行 5個)
+    IF L_IDX = 5.
+      L_IDX = 0.
+      TAB_DOUKI-DATA = L_DATA.
+      APPEND TAB_DOUKI.
+      CLEAR: TAB_DOUKI,
+             L_DATA.
+      IF P_GRP1 <> ' '.                "要約は1行のみ
+        EXIT.
+      ENDIF.
+    ENDIF.
+  ENDLOOP.
+** 終了処理
+  IF  L_IDX > 0.
+    TAB_DOUKI-DATA = L_DATA.
+    APPEND TAB_DOUKI.
+    CLEAR  TAB_DOUKI.
+  ENDIF.
+** 続きの判定
+  IF  P_GRP1 <>  ' ' AND G_CNT_SN > 5.
+    DESCRIBE TABLE TAB_DOUKI LINES L_CNT_TABLE.
+    READ TABLE TAB_DOUKI INDEX L_CNT_TABLE.
+    CONCATENATE TAB_DOUKI-DATA ',ETC.' INTO TAB_DOUKI-DATA.
+    MODIFY TAB_DOUKI FROM TAB_DOUKI-DATA INDEX L_CNT_TABLE.
+  ENDIF.
+ENDFORM.                               " F_EDT_DOUKI
+
+*&---------------------------------------------------------------------*
+*&      Form  F_EDT_KANREN
+*&---------------------------------------------------------------------*
+*       レポート　：　明細編集・出力 (関連設変)
+*----------------------------------------------------------------------*
+FORM F_EDT_KANREN.
+  DATA: L_IDX(01)   TYPE N,            "インデックス 1 - 8
+        L_DATA(68)  TYPE C,            "編集データ
+        L_CNT_TABLE TYPE I.            "テーブルカウント
+*--INS START- T5756 - 20150123 --*
+  DATA: L_ATWRT(10)  TYPE C.           "特性値
+*--INS END  - T5756 - 20150123 --*
+
+  CLEAR L_IDX.
+  LOOP AT TAB_AUSP WHERE ATINN = G_ATINN26.
+    L_IDX = L_IDX + 1.
+** (データ編集)
+    IF L_IDX > 1.
+      CONCATENATE L_DATA ', ' INTO L_DATA.
+    ENDIF.
+*--UPD START- T5756 - 20150123 --*
+*    CONCATENATE L_DATA TAB_AUSP-ATWRT+0(10) INTO L_DATA.
+    TRY.
+      CALL METHOD CL_ABAP_LIST_UTILITIES=>READ_FROM_DISPLAY_LAYOUT
+        EXPORTING
+          DISPLAY_DATA   = TAB_AUSP-ATWRT
+                                       "特性値
+          DISPLAY_OFFSET = '0'
+          DISPLAY_LENGTH = '10'
+        IMPORTING
+          FIELD          = L_ATWRT.    "特性値
+      CATCH CX_PARAMETER_INVALID_RANGE.
+    ENDTRY.
+    CONCATENATE L_DATA L_ATWRT INTO L_DATA.
+*--UPD END  - T5756 - 20150123 --*
+** (詳細情報　1行 5個)
+    IF L_IDX = 5.
+      L_IDX = 0.
+      TAB_KANREN-DATA = L_DATA.
+      APPEND TAB_KANREN.
+      CLEAR: TAB_KANREN,
+             L_DATA.
+      IF P_GRP1 <> ' '.                "要約は1行のみ
+        EXIT.
+      ENDIF.
+    ENDIF.
+  ENDLOOP.
+** 終了処理
+  IF  L_IDX > 0.
+    TAB_KANREN-DATA = L_DATA.
+    APPEND TAB_KANREN.
+    CLEAR  TAB_KANREN.
+  ENDIF.
+** 続きの判定
+  IF  P_GRP1 <>  ' ' AND G_CNT_RN > 5.
+    DESCRIBE TABLE TAB_KANREN LINES L_CNT_TABLE.
+    READ TABLE TAB_KANREN INDEX L_CNT_TABLE.
+    CONCATENATE TAB_KANREN-DATA ',ETC.' INTO TAB_KANREN-DATA.
+    MODIFY TAB_KANREN FROM TAB_KANREN-DATA INDEX L_CNT_TABLE.
+  ENDIF.
+ENDFORM.                               " F_EDT_KANREN
+
+*&---------------------------------------------------------------------*
+*&      Form  F_EDT_ZUMEN
+*&---------------------------------------------------------------------*
+*       レポート　：　明細編集・出力 (関連図面)
+*----------------------------------------------------------------------*
+FORM F_EDT_ZUMEN.
+  DATA: L_IDX(01)   TYPE N,            "インデックス 1 - 4
+        L_DATA(68)  TYPE C,            "編集データ
+        L_CNT_TABLE TYPE I.            "テーブルカウント
+*--INS START- T5756 - 20150123 --*
+  DATA: L_ATWRT(12)  TYPE C.           "特性値
+*--INS END  - T5756 - 20150123 --*
+
+  CLEAR L_IDX.
+  LOOP AT TAB_AUSP WHERE ATINN = G_ATINN27.
+    L_IDX = L_IDX + 1.
+** (データ編集)
+    IF L_IDX > 1.
+      CONCATENATE L_DATA ', ' INTO L_DATA.
+    ENDIF.
+*--UPD START- T5756 - 20150123 --*
+*    CONCATENATE L_DATA TAB_AUSP-ATWRT+0(12) INTO L_DATA.
+    TRY.
+      CALL METHOD CL_ABAP_LIST_UTILITIES=>READ_FROM_DISPLAY_LAYOUT
+        EXPORTING
+          DISPLAY_DATA   = TAB_AUSP-ATWRT
+                                       "特性値
+          DISPLAY_OFFSET = '0'
+          DISPLAY_LENGTH = '12'
+        IMPORTING
+          FIELD          = L_ATWRT.    "特性値
+      CATCH CX_PARAMETER_INVALID_RANGE.
+    ENDTRY.
+    CONCATENATE L_DATA L_ATWRT INTO L_DATA.
+*--UPD END  - T5756 - 20150123 --*
+** (詳細情報　1行 4個)
+    IF L_IDX = 4.
+      L_IDX = 0.
+      TAB_ZUMEN-DATA = L_DATA.
+      APPEND TAB_ZUMEN.
+      CLEAR: TAB_ZUMEN,
+             L_DATA.
+      IF P_GRP1 <> ' ' AND SY-TABIX = 2.             "要約は2行のみ
+        EXIT.
+      ENDIF.
+    ENDIF.
+  ENDLOOP.
+** 終了処理
+  IF  L_IDX > 0.
+    TAB_ZUMEN-DATA = L_DATA.
+    APPEND TAB_ZUMEN.
+    CLEAR  TAB_ZUMEN.
+  ENDIF.
+** 続きの判定
+  IF  P_GRP1 <> ' ' AND G_CNT_ZM > 8.
+    DESCRIBE TABLE TAB_ZUMEN LINES L_CNT_TABLE.
+    READ TABLE TAB_ZUMEN INDEX L_CNT_TABLE.
+    CONCATENATE TAB_ZUMEN-DATA ',ETC.' INTO TAB_ZUMEN-DATA.
+    MODIFY TAB_ZUMEN FROM TAB_ZUMEN-DATA INDEX L_CNT_TABLE.
+  ENDIF.
+ENDFORM.                               " F_EDT_ZUMEN
+
+*&---------------------------------------------------------------------*
+*&      Form  F_WRITE_MATNR
+*&---------------------------------------------------------------------*
+*       レポート　：　明細編集・出力 (親品目)
+*----------------------------------------------------------------------*
+FORM F_WRITE_MATNR.
+  DATA: L_MATNR(13) TYPE C,            "品目コード
+        L_COUNT     TYPE I.            "ラインカウント
+*--INS START- T5756 - 20150123 --*
+  DATA: L_MAKTX(25)  TYPE C.           "品目テキスト
+*--INS END  - T5756 - 20150123 --*
+
+** 改頁の判定
+  LOOP AT TAB_WRK8 WHERE MATNR = REC_WRK5-MATNR.
+  ENDLOOP.
+  L_COUNT = SY-LINNO + TAB_WRK8-COUNT + 6.
+  IF L_COUNT > 58.
+    NEW-PAGE.
+  ENDIF.
+** 各種　編集
+  WRITE REC_WRK5-MATNR TO L_MATNR.
+  G_CNT_MATNR = G_CNT_MATNR + 1.
+*--INS START- T5756 - 20150123 --*
+  TRY.
+    CALL METHOD CL_ABAP_LIST_UTILITIES=>READ_FROM_DISPLAY_LAYOUT
+      EXPORTING
+        DISPLAY_DATA   = REC_WRK5-MAKTX
+                                       "品目テキスト
+        DISPLAY_OFFSET = '0'
+        DISPLAY_LENGTH = '25'
+      IMPORTING
+        FIELD          = L_MAKTX.      "品目テキスト
+    CATCH CX_PARAMETER_INVALID_RANGE.
+  ENDTRY.
+*--INS END  - T5756 - 20150123 --*
+** 出力
+  WRITE: /009 '親品目   :',
+          021 L_MATNR,                 "品目コード
+*--UPD START- T5756 - 20150123 --*
+*          037 REC_WRK5-MAKTX+0(25).    "品目テキスト
+          037 L_MAKTX.                 "品目テキスト
+*--UPD END  - T5756 - 20150123 --*
+  WRITE: /009 'MATERIAL',
+          021 '(',
+          022 G_CNT_MATNR NO-ZERO,     "親品目SEQ
+          025 ')'.
+** 2001/07/11 CHG ↓
+  WRITE: /058 '取付位置       |',
+          124 '取付位置       |'.
+  WRITE: /009 '旧品目(BEFORE CHANGE)',
+          058 ' INST.         |',
+          075 '新品目(AFTER CHANGE)',
+          124 ' INST.         |',
+          141 '明細番号 #1  #2  #3  #4'.
+  WRITE: /009 'COMPONENT',
+          024 'DESCRIPTION',
+          050 'QUANTITY',
+          058 ' POINT         |',
+          075 'COMPONENT',
+          090 'DESCRIPTION',
+          116 'QUANTITY',
+          124 ' POINT         |',
+          141 'ITEM     CMP 2ND INS PART'.
+  ULINE: /009(13),
+          024(25),
+          050(07).
+  ULINE:  059(13).
+  WRITE:  073 '+'.
+  ULINE:  075(13),
+          090(25),
+          116(07).
+  ULINE:  125(13).
+  WRITE:  139 '+'.
+  ULINE:  141(04),
+          150(02),
+          154(02),
+          158(02),
+          162(02).
+**
+*  WRITE: /058 '取付位置|',
+*          117 '取付位置|'.
+*  WRITE: /009 '旧品目(BEFORE CHANGE)',
+*          058 ' INST.  |',
+*          068 '新品目(AFTER CHANGE)',
+*          117 ' INST.  |',
+*          127 '明細番号 #1  #2  #3  #4'.
+*  WRITE: /009 'COMPONENT',
+*          024 'DESCRIPTION',
+*          050 'QUANTITY',
+*          058 ' POINT  |',
+*          068 'COMPONENT',
+*          083 'DESCRIPTION',
+*          109 'QUANTITY',
+*          117 ' POINT  |',
+*          127 'ITEM     CMP 2ND INS PART'.
+*  ULINE: /009(13),
+*          024(25),
+*          050(07).
+*  ULINE:  059(06).
+*  WRITE:  066 '+'.
+*  ULINE:  068(13),
+*          083(25),
+*          109(07).
+*  ULINE:  118(06).
+*  WRITE:  125 '+'.
+*  ULINE:  127(04),
+*          136(02),
+*          140(02),
+*          144(02),
+*          148(02).
+** 2001/07/11 CHG ↑
+ENDFORM.                               " F_WRITE_MATNR
+
+*&---------------------------------------------------------------------*
+*&      Form  F_WRITE_DETAIL2
+*&---------------------------------------------------------------------*
+*       レポート　：　明細編集・出力 (詳細)
+*----------------------------------------------------------------------*
+FORM F_WRITE_DETAIL2.
+  DATA: L_SURYO(04) TYPE P DECIMALS 3. "数量
+*--INS START- T5756 - 20150123 --*
+  DATA: L_MAKTX1(25) TYPE C.           "構成品目名称
+  TRY.
+    CALL METHOD CL_ABAP_LIST_UTILITIES=>READ_FROM_DISPLAY_LAYOUT
+      EXPORTING
+        DISPLAY_DATA   = TAB_WRK5-MAKTX1
+                                       "構成品目名称
+        DISPLAY_OFFSET = '0'
+        DISPLAY_LENGTH = '25'
+      IMPORTING
+        FIELD          = L_MAKTX1.     "構成品目名称
+    CATCH CX_PARAMETER_INVALID_RANGE.
+  ENDTRY.
+*--INS END  - T5756 - 20150123 --*
+
+  IF TAB_WRK5-LKENZ <> ' '.            "左側: 旧品目
+    WRITE TAB_WRK5-IDNRK TO REC_LST-IDNRK.
+*--UPD START- T5756 - 20150123 --*
+*    REC_LST-MAKTX1 = TAB_WRK5-MAKTX1+0(25).
+    REC_LST-MAKTX1 = L_MAKTX1.
+*--UPD END  - T5756 - 20150123 --*
+    L_SURYO = TAB_WRK5-MENGE.
+    WRITE L_SURYO        TO REC_LST-MENGE NO-ZERO.
+  ELSE.                                "右側: 新品目
+    WRITE TAB_WRK5-IDNRK TO REC_LST-IDNRK2.
+*--UPD START- T5756 - 20150123 --*
+*    REC_LST-MAKTX2 = TAB_WRK5-MAKTX1+0(25).
+    REC_LST-MAKTX2 = L_MAKTX1.
+*--UPD END  - T5756 - 20150123 --*
+    L_SURYO = TAB_WRK5-MENGE.
+    WRITE L_SURYO        TO REC_LST-MENGE2 NO-ZERO.
+  ENDIF.
+
+  REC_LST-POSNR  = TAB_WRK5-POSNR.
+  REC_LST-POTX1  = TAB_WRK5-POTX1+0(02).
+  REC_LST-POTX2  = TAB_WRK5-POTX1+2(01).
+  REC_LST-POTX3  = TAB_WRK5-POTX1+3(01).
+  REC_LST-POTX4  = TAB_WRK5-POTX1+4(01).
+ENDFORM.                               " F_WRITE_DETAIL2
+
+*&---------------------------------------------------------------------*
+*&      Form  F_WRITE_DETAIL3
+*&---------------------------------------------------------------------*
+*       レポート　：　明細編集・出力 (副明細)
+*----------------------------------------------------------------------*
+FORM F_WRITE_DETAIL3.
+  DATA: L_SURYO(04) TYPE P DECIMALS 3. "数量
+
+  LOOP AT TAB_WRK6 WHERE STLTY = TAB_WRK5-STLTY
+                   AND   STLNR = TAB_WRK5-STLNR
+                   AND   STVKN = TAB_WRK5-STVKN.
+    IF TAB_WRK6-LKENZ <> ' '.          "左側: 旧品目
+*--UPD START- T5756 - 20150123 --*
+*      REC_LST-MAKTX1+21(04) = TAB_WRK6-UPOSZ.
+      TRY.
+        CALL METHOD CL_ABAP_LIST_UTILITIES=>REPLACE_INTO_DISPLAY_LAYOUT
+          EXPORTING
+            FIELD          = TAB_WRK6-UPOSZ
+                                       "副明細番号
+            DISPLAY_OFFSET = '21'
+            DISPLAY_LENGTH = '4'
+          CHANGING
+            DISPLAY_DATA   = REC_LST-MAKTX1.
+                                       "旧品目名称
+        CATCH CX_PARAMETER_INVALID_RANGE .
+      ENDTRY.
+*--UPD END  - T5756 - 20150123 --*
+      REC_LST-EBORT1 = TAB_WRK6-EBORT.
+      L_SURYO = TAB_WRK6-UPMNG.
+      WRITE L_SURYO        TO REC_LST-MENGE NO-ZERO.
+    ELSE.                              "右側: 新品目
+*--UPD START- T5756 - 20150123 --*
+*      REC_LST-MAKTX2+21(04) = TAB_WRK6-UPOSZ.
+      TRY.
+        CALL METHOD CL_ABAP_LIST_UTILITIES=>REPLACE_INTO_DISPLAY_LAYOUT
+          EXPORTING
+            FIELD          = TAB_WRK6-UPOSZ
+                                       "副明細番号
+            DISPLAY_OFFSET = '21'
+            DISPLAY_LENGTH = '4'
+          CHANGING
+            DISPLAY_DATA   = REC_LST-MAKTX2.
+                                       "新品目名称
+        CATCH CX_PARAMETER_INVALID_RANGE .
+      ENDTRY.
+*--UPD END  - T5756 - 20150123 --*
+      REC_LST-EBORT2 = TAB_WRK6-EBORT.
+      L_SURYO = TAB_WRK6-UPMNG.
+      WRITE L_SURYO        TO REC_LST-MENGE2 NO-ZERO.
+    ENDIF.
+** (出力)
+    AT END OF UPOSZ.
+** #1500282 chg
+*      WRITE: /001 REC_LST.
+      WRITE: /001 REC_LST+00(23).
+      WRITE:  024 REC_LST+23(25).      "旧品目
+      WRITE:  049 REC_LST+48(41).
+      WRITE:  090 REC_LST+89(25).      "新品目
+      WRITE:  115 REC_LST+114(48).
+*
+      CLEAR REC_LST.
+    ENDAT.
+  ENDLOOP.
+ENDFORM.                               " F_WRITE_DETAIL3
+
+*&---------------------------------------------------------------------*
+*&      Form  F_WRITE_FOOTER
+*&---------------------------------------------------------------------*
+*       レポート　：　明細編集・出力 (詳細：フッター)
+*----------------------------------------------------------------------*
+FORM F_WRITE_FOOTER.
+  DATA: L_COUNT     TYPE I.            "ラインカウント
+
+** 改頁の判定
+  L_COUNT = SY-LINNO + 9.
+  IF L_COUNT > 58.
+    NEW-PAGE.
+  ENDIF.
+** 出力
+  ULINE: /003(158).
+  WRITE: /010 '#1 CMP : 互換性 COMPATIBILITY',
+          044 '#2 2ND : セカンド区分 2ND VENDER',
+          079 '#3 INS : 手配指示 INSTRUCTION',
+          120 '#4 PART: 旧部品処理 TREATMENT OF STOCK'.
+  WRITE: /014 '1ST  A 有 COMPATIBLE',
+          053 '1 有り EXIST',
+          088 '1 既出荷品   SHIPPED PRODUCTS',
+          129 '1 転用   CONVERSION'.
+  WRITE: /014 'BYTE B →',
+          053 '2 優先 PREFERENTIAL',
+          088 '2 仕掛品     WIP(WORK IN PROCESS)',
+          129 '2 廃棄   DISPOSAL'.
+  WRITE: /019 'C ←',
+          053 '3 無し NOT EXIST',
+          088 '3 在庫部品   STOCK',
+          129 '3 追加工 REPROCESSING'.
+  WRITE: /019 'D 無 NOT COMPATIBLE',
+          088 '4 外注仕掛品 WIP IN SUPPLIER',
+          129 '4 消化   CONSUMPTION'.
+  WRITE: /088 '5 新規発注   NEW ORDER',
+          129 '5 無し   NOT NECESSARY'.
+  WRITE: /088 '9 未定       NOT DECIDED',
+          129 '9 未定   NOT DECIDED'.
+  WRITE: /014 '2ND  1-9  SIMULTANEOUS CHANGE'.
+  WRITE: /014 'BYTE *    NO SIMULTANEOUS CHANGE'.
+ENDFORM.                               " F_WRITE_FOOTER

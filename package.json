@@ -1,0 +1,17 @@
+{
+  "name": "ecn-pdf-to-excel",
+  "version": "1.0.0",
+  "description": "ECN(PDF) → 两个 Excel（ヘッダ情報 / 明細情報）自动解析工具",
+  "type": "module",
+  "main": "ecn_pdf_to_excel.js",
+  "scripts": {
+    "start": "node ecn_pdf_to_excel.js",
+    "batch": "node batch.js"
+  },
+  "dependencies": {
+  "pdf-parse": "^2.4.5",
+  "xlsx": "^0.18.5"
+  },
+  "author": "",
+  "license": "ISC"
+}
