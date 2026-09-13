@@ -46,6 +46,33 @@ npm start -- "/path/to/GA1674.pdf"
 npm run batch -- "/path/to/pdf文件夹"
 ```
 
+## 逆展開报告生成机种清单
+
+针对 `ZS0PR012D` 最终逆展開报告，生成只包含以下四列的 Excel：
+`親品目コード`、`親品目テキスト`、`直上品目コード`、`直上品目テキスト`。
+
+```bash
+node reverse_bom_to_excel.mjs "/path/to/ZS0PR012D.pdf"
+node reverse_bom_to_excel.mjs "/path/to/ZS0PR012D.pdf" --out "./output"
+
+# 或使用 npm 脚本
+npm run reverse-bom -- "/path/to/ZS0PR012D.pdf"
+```
+
+输出文件名为 `原PDF文件名_机种清单.xlsx`，工作表名称为 `机种清单`。
+
+多个逆展開 PDF 合并为一个 Excel：
+
+```bash
+node merge_reverse_bom.mjs "/path/to/pdf文件夹"
+node merge_reverse_bom.mjs "/path/to/pdf文件夹" --out "./output/机种清单.xlsx"
+
+# 或使用 npm 脚本
+npm run merge-reverse-bom -- "/path/to/pdf文件夹"
+```
+
+脚本会读取文件夹内全部 PDF，合并输出一个 `机种清单` 工作表，并只保留上述四列。
+
 ## 输出示例
 ```
 ✅ 使用 pdftotext 解析
@@ -64,6 +91,8 @@ npm run batch -- "/path/to/pdf文件夹"
 |------|------|
 | `ecn_pdf_to_excel.mjs` | 主脚本：单个 PDF → 两个 Excel |
 | `batch.js` | 批量脚本：遍历文件夹 |
+| `reverse_bom_to_excel.mjs` | 逆展開报告 → 机种清单 |
+| `merge_reverse_bom.mjs` | 合并多个逆展開报告 → 一个机种清单 |
 | `ec_pdf.txt` | 对应的 ABAP 开发源码和报表格式参考 |
 | `package.json` | 依赖声明 |
 | `README.md` | 本说明 |

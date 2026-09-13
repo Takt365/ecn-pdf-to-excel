@@ -6,7 +6,9 @@
   "main": "ecn_pdf_to_excel.mjs",
   "scripts": {
     "start": "node ecn_pdf_to_excel.mjs",
-    "batch": "node batch.js"
+    "batch": "node batch.js",
+    "reverse-bom": "node reverse_bom_to_excel.mjs",
+    "merge-reverse-bom": "node merge_reverse_bom.mjs"
   },
   "dependencies": {
   "pdf-parse": "^2.4.5",
