@@ -132,7 +132,6 @@ function parseDetailLine(line, current, mainNo) {
   const quantities = [...data.matchAll(QTY_RE)].map(match => match[0]);
   let oldSide = parseSide(data, items[0], quantities[0]);
   let newSide = parseSide(data, items[1], quantities[1]);
-  const changeFlag = meta?.[2] || '';
   if (items.length === 1) {
     // With one material, the ABAP report writes the detail flags only on the old side.
     if (!meta) {
