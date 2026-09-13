@@ -1,3 +1,13 @@
 node_modules/
+output*/
 *.xlsx
 *.xls
+~$*.xlsx
+
+# Only these generated output directories are versioned.
+!output/
+!output/**
+!ec_pdf/output/
+!ec_pdf/output/**
+!md_pdf/output/
+!md_pdf/output/**
