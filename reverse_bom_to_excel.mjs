@@ -6,10 +6,10 @@ import XLSX from 'xlsx';
 import { PDFParse } from 'pdf-parse';
 
 const COLUMNS = [
-  '親品目コード',
-  '親品目テキスト',
   '直上品目コード',
-  '直上品目テキスト'
+  '直上品目テキスト',
+  '親品目コード',
+  '親品目テキスト'
 ];
 
 function clean(value) {
@@ -18,6 +18,10 @@ function clean(value) {
 
 function isMaterialCode(value) {
   return /^(?:[A-Z]{1,3}\d{6,}[A-Z]?|\d{8,})$/.test(value);
+}
+
+function isItemCode(value) {
+  return /^(?=.*\d)[A-Z0-9][A-Z0-9-]{5,}$/.test(value);
 }
 
 function parseRow(line) {
@@ -33,17 +37,18 @@ function parseRow(line) {
   if (quantityIndex < 0) return null;
   if (materialIndex >= quantityIndex) return null;
 
-  const parentCode = fields[1];
-  const parentText = fields.slice(2, materialIndex).join(' ');
+  const parentCodeIndex = isItemCode(fields[1]) ? 1 : 0;
+  const parentCode = fields[parentCodeIndex];
+  const parentText = fields.slice(parentCodeIndex + 1, materialIndex).join(' ');
   const upperCode = fields[materialIndex];
   const upperText = fields.slice(materialIndex + 1, quantityIndex).join(' ');
   if (!parentCode || !parentText || !upperCode || !upperText) return null;
 
   return {
-    '親品目コード': parentCode,
-    '親品目テキスト': parentText,
     '直上品目コード': upperCode,
-    '直上品目テキスト': upperText
+    '直上品目テキスト': upperText,
+    '親品目コード': parentCode,
+    '親品目テキスト': parentText
   };
 }
 

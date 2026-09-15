@@ -6,10 +6,10 @@ import { PDFParse } from 'pdf-parse';
 import { parseReverseBom } from './reverse_bom_to_excel.mjs';
 
 const COLUMNS = [
-  '親品目コード',
-  '親品目テキスト',
   '直上品目コード',
-  '直上品目テキスト'
+  '直上品目テキスト',
+  '親品目コード',
+  '親品目テキスト'
 ];
 
 function cleanArg(value) {
