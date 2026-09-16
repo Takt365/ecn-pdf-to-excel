@@ -1,0 +1,574 @@
+*&---------------------------------------------------------------------*
+*& プログラムＩＤ：ZS0PR012
+*& プログラム名称：最終逆展開レポート
+*& 作    成    者：ＴＳＣ　深沢
+*& 作    成    日：00/06/13
+*& 備　　　　　考：
+*&---------------------------------------------------------------------*
+*& 変  更  番  号：
+*& 変    更    者：ＴＳＣ　深沢
+*& 変    更    日：01/01/30
+*& 変更前 Version：
+*& 変  更  内  容：最上位の判定追加 2,5
+*&---------------------------------------------------------------------*
+*& 変  更  番  号：
+*& 変    更    者：ＴＳＣ　深沢
+*& 変    更    日：06/04/17
+*& 変更前 Version：
+*& 変  更  内  容：合計レコード区分 = * の削除
+*&---------------------------------------------------------------------*
+*& 変  更  番  号：001
+*& 変    更    者：T5756
+*& 変    更    日：2015/01/29
+*& 変更前 Version：00004
+*& 変  更  内  容：バージョンアップ対応
+*&---------------------------------------------------------------------*
+REPORT ZS0PR012 MESSAGE-ID ZP
+                LINE-COUNT 58
+                LINE-SIZE 170
+                NO STANDARD PAGE HEADING.
+
+************************************************************************
+* INCLUDE
+************************************************************************
+*INCLUDE:
+
+************************************************************************
+* TABLES
+************************************************************************
+TABLES:
+  ENT1034.                             "品目 設計及びデザイン
+
+************************************************************************
+* DATA
+************************************************************************
+*** 内部テーブル定義
+***                                 ** 展開データ用 1
+TYPES: BEGIN OF TYPE_WRK1.
+        INCLUDE STRUCTURE STPOV.
+TYPES: END OF TYPE_WRK1.
+DATA: TAB_WRK1 TYPE STANDARD TABLE OF TYPE_WRK1
+                    WITH HEADER LINE.
+***                                 ** 展開データ用 2-1
+TYPES: BEGIN OF TYPE_WRK21,
+  MATNR LIKE STPOV-MATNR,              "親品目コード
+  INTRM LIKE STPOV-INTRM,              "直上品目コード
+  IDNRK LIKE STPOV-IDNRK,              "構成品目コード
+  MENGE LIKE STPOV-MENGE,              "数量
+  MEINS LIKE STPOV-MEINS,              "単位
+  AENNR LIKE STPOV-AENNR,              "設変
+  DATUV LIKE STPOV-DATUV,              "有効開始日
+  END OF TYPE_WRK21.
+DATA: TAB_WRK21 TYPE STANDARD TABLE OF TYPE_WRK21
+                    WITH HEADER LINE.
+***                                 ** 展開データ用 2-2
+DATA: TAB_WRK22 TYPE STANDARD TABLE OF TYPE_WRK21
+                    WITH HEADER LINE.
+***                                 ** 展開用 ダミー1
+TYPES: BEGIN OF TYPE_DMY1.
+        INCLUDE STRUCTURE CSCEQUI.
+TYPES: END OF TYPE_DMY1.
+DATA: TAB_DMY1 TYPE STANDARD TABLE OF TYPE_DMY1
+                    WITH HEADER LINE.
+***                                 ** 展開用 ダミー2
+TYPES: BEGIN OF TYPE_DMY2.
+        INCLUDE STRUCTURE CSCKND.
+TYPES: END OF TYPE_DMY2.
+DATA: TAB_DMY2 TYPE STANDARD TABLE OF TYPE_DMY2
+                    WITH HEADER LINE.
+***                                 ** 展開用 ダミー3
+TYPES: BEGIN OF TYPE_DMY3.
+        INCLUDE STRUCTURE CSCMAT.
+TYPES: END OF TYPE_DMY3.
+DATA: TAB_DMY3 TYPE STANDARD TABLE OF TYPE_DMY3
+                    WITH HEADER LINE.
+***                                 ** 展開用 ダミー4
+TYPES: BEGIN OF TYPE_DMY4.
+        INCLUDE STRUCTURE CSCSTD.
+TYPES: END OF TYPE_DMY4.
+DATA: TAB_DMY4 TYPE STANDARD TABLE OF TYPE_DMY4
+                    WITH HEADER LINE.
+***                                 ** 展開用 ダミー5
+TYPES: BEGIN OF TYPE_DMY5.
+        INCLUDE STRUCTURE CSCTPL.
+TYPES: END OF TYPE_DMY5.
+DATA: TAB_DMY5 TYPE STANDARD TABLE OF TYPE_DMY5
+                    WITH HEADER LINE.
+
+***                                 ** リスト用 : 逆展開　明細
+TYPES: BEGIN OF TYPE_PRT.
+        INCLUDE STRUCTURE TAB_WRK21.
+TYPES:
+  BISMT LIKE ENT1034-BISMT,            "親機種コード
+  MAKTX LIKE ENT1034-MAKTX,            "親品目テキスト
+  INTTX LIKE ENT1034-MAKTX,            "直上品目テキスト
+  END OF TYPE_PRT.
+DATA: TAB_PRT TYPE STANDARD TABLE OF TYPE_PRT
+                    WITH HEADER LINE.
+
+***                                 ** レポート用セーブ　項目
+DATA: BEGIN OF REC_SAVE,
+  BISMT LIKE ENT1034-BISMT,            "機種コード
+  MATNR LIKE ENT1034-MATNR,            "親品目コード
+  MAKTX LIKE ENT1034-MAKTX,            "親品目テキスト
+  END OF REC_SAVE.
+
+***                                 ** レポート用出力　項目
+DATA: BEGIN OF REC_LIST.
+        INCLUDE STRUCTURE TAB_PRT.
+DATA: END OF REC_LIST.
+
+*** グローバル変数定義
+DATA: G_MAKTX  LIKE ENT1034-MAKTX,     "ヘッダー:品目テキスト
+      G_MATKL  LIKE ENT1034-MATKL.     "ヘッダー:品目グループ
+
+************************************************************************
+* CONSTANTS　
+************************************************************************
+CONSTANTS:
+   C_TITLE(40) TYPE C VALUE
+               '最終逆展開レポート',
+   C_MSG11(20) TYPE C VALUE '(ＢＯＭ)'.
+
+***********************************************************************
+* PARAMETERS & SELECT-OPTIONS
+***********************************************************************
+*SELECT-OPTIONS:
+PARAMETERS:
+  P_MATNR  LIKE STPOV-MATNR OBLIGATORY MATCHCODE OBJECT MAT1,
+                                       "品目コード
+  P_WERKS  LIKE STPOV-WERKS  DEFAULT '1000' OBLIGATORY
+            MATCHCODE OBJECT H_T001W,  "プラント
+  P_STLAN  LIKE STPOV-STLAN OBLIGATORY MATCHCODE OBJECT H_T416.
+"ＢＯＭ用途
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN COMMENT (10) FOR FIELD P_DATUV.
+SELECTION-SCREEN POSITION 35.
+PARAMETERS:
+  P_DATUV  LIKE STPOV-DATUV  DEFAULT SY-DATUM OBLIGATORY.
+"有効日(開始)
+SELECTION-SCREEN POSITION 49.
+SELECTION-SCREEN COMMENT (02) TEXT-001.
+SELECTION-SCREEN POSITION 55.
+PARAMETERS:
+  P_DATUB  LIKE STPOV-DATUV  DEFAULT SY-DATUM OBLIGATORY.
+"有効日(終了)
+SELECTION-SCREEN END OF LINE.
+
+************************************************************************
+* INITIALIZATION.
+************************************************************************
+INITIALIZATION.
+
+************************************************************************
+* AT SELECTION-SCREEN.
+************************************************************************
+AT SELECTION-SCREEN.
+** データ存在チェック:メイン
+  PERFORM F_READ_CHECK.
+
+************************************************************************
+* START-OF-SELECTION
+************************************************************************
+START-OF-SELECTION.
+** 初期処理
+  PERFORM F_FIRST.
+** データ抽出: 展開＆テーブル作成
+  PERFORM F_GEN_TABLE.
+** ソート
+** (親品目コード > 直上品目コード)
+  SORT TAB_PRT BY MATNR INTRM ASCENDING.
+** レポート出力
+  PERFORM F_WRITE_REPORT.
+
+************************************************************************
+* END-OF-SELECITON
+************************************************************************
+END-OF-SELECTION.
+
+************************************************************************
+* TOP-OF-PAGE
+************************************************************************
+TOP-OF-PAGE.
+  PERFORM F_WRITE_HED.
+
+************************************************************************
+* ｻﾌﾞﾙｰﾁﾝ
+************************************************************************
+*&---------------------------------------------------------------------*
+*&      Form  F_READ_CHECK
+*&---------------------------------------------------------------------*
+*       データ存在チェック:メイン
+*----------------------------------------------------------------------*
+FORM F_READ_CHECK.
+  DATA: L_SUBRC LIKE SY-SUBRC.         "リターンコード
+
+** 逆展開
+  PERFORM F_CALL_FUNC   USING P_MATNR
+                     CHANGING L_SUBRC.
+
+** 対象なしのケース
+  IF L_SUBRC <> 0.
+    MESSAGE E005(ZB) WITH C_MSG11.
+  ENDIF.
+ENDFORM.                               " F_READ_CHECK
+
+*&---------------------------------------------------------------------*
+*&      Form  F_CALL_FUNC
+*&---------------------------------------------------------------------*
+*       汎用モジュール ：逆展開
+*----------------------------------------------------------------------*
+*      -->P_MATNR    品目コード
+*      <--P_BISMT    リターンコード
+*----------------------------------------------------------------------*
+FORM F_CALL_FUNC   USING P_MATNR
+                CHANGING P_SUBRC.
+  CLEAR:
+    TAB_WRK1.                                               "展開用 1
+  REFRESH:
+    TAB_WRK1.                                               "展開用 1
+
+** 逆展開
+  CALL FUNCTION 'CS_WHERE_USED_MAT'
+    EXPORTING
+      DATUB                      = P_DATUB
+      DATUV                      = P_DATUV
+      MATNR                      = P_MATNR
+      POSTP                      = ' '
+      STLAN                      = P_STLAN
+      WERKS                      = P_WERKS
+    TABLES
+      WULTB                      = TAB_WRK1
+      EQUICAT                    = TAB_DMY1
+      KNDCAT                     = TAB_DMY2
+      MATCAT                     = TAB_DMY3
+      STDCAT                     = TAB_DMY4
+      TPLCAT                     = TAB_DMY5
+    EXCEPTIONS
+      CALL_INVALID               = 1
+      MATERIAL_NOT_FOUND         = 2
+      NO_WHERE_USED_REC_FOUND    = 3
+      NO_WHERE_USED_REC_SELECTED = 4
+      NO_WHERE_USED_REC_VALID    = 5
+      OTHERS                     = 6.
+
+  P_SUBRC = SY-SUBRC.
+ENDFORM.                               " F_CALL_FUNC
+
+*&---------------------------------------------------------------------*
+*&      Form  F_WRITE_HED
+*&---------------------------------------------------------------------*
+*       ヘッダ出力
+*----------------------------------------------------------------------*
+FORM F_WRITE_HED.
+* 帳票ヘッダ
+**出力位置調整
+** 58*170 : xx1→001, xx2→081, xx3→138, xx4→150, xx5→161, xx6→167
+** 65*255 : xx1→001, xx2→120, xx3→225, xx4→237, xx5→246, xx6→252
+** 65*80  : xx1→001, xx2→020, xx3→050, xx4→062, xx5→071, xx6→077
+** 65*132 : xx1→001, xx2→055, xx3→100, xx4→112, xx5→123, xx6→129
+  DATA: L_MATNR(10) TYPE C.            "品目コード
+*--INS START- T5756 - 20150129 --*
+  DATA: L_MAKTX(25)  TYPE C.           "品目テキスト
+*--INS END  - T5756 - 20150129 --*
+
+**  1行目
+  WRITE: /001 'REPORT-ID :',
+          013 SY-CPROG,                "プログラムID
+          130 '日時 : ',
+          137 SY-DATUM,                "日付
+          148 SY-UZEIT,                "時刻
+          158 'PAGE : ',
+          164 SY-PAGNO.                "ページNo.
+**  2行目
+  WRITE: /070 C_TITLE.                 "帳票タイトル
+**  3行目
+  WRITE P_MATNR TO L_MATNR.
+  WRITE: /016 '品目コード',
+          030 L_MATNR.
+**  4行目
+*--INS START- T5756 - 20150129 --*
+  TRY.
+    CALL METHOD CL_ABAP_LIST_UTILITIES=>READ_FROM_DISPLAY_LAYOUT
+      EXPORTING
+        DISPLAY_DATA   = G_MAKTX       "品目テキスト
+        DISPLAY_OFFSET = '0'
+        DISPLAY_LENGTH = '25'
+      IMPORTING
+        FIELD          = L_MAKTX.      "品目テキスト
+    CATCH CX_PARAMETER_INVALID_RANGE.
+  ENDTRY.
+*--INS END  - T5756 - 20150129 --*
+  WRITE: /016 '品目テキスト',
+*--UPD START- T5756 - 20150129 --*
+*          030 G_MAKTX+0(25).
+          030 L_MAKTX.
+*--UPD END  - T5756 - 20150129 --*
+**  5行目
+  WRITE: /016 '品目グループ',
+          030 G_MATKL.
+**  6行目
+  WRITE: /016 'プラント',
+          030 P_WERKS.
+**  7行目
+  WRITE: /016 'ＢＯＭ用途',
+          030 P_STLAN.
+**  8行目
+  WRITE: /016 '有効日',
+          030 P_DATUV,
+          042 'to',
+          046 P_DATUB.
+**  9行目
+  SKIP.
+  WRITE: /002 '親機種コード',
+          016 '親品目コード',
+          030 '親品目テキスト',
+          057 '直上品目コード',
+          073 '直上品目テキスト',
+          103 '使用数量',
+          117 '単位',
+          122 '設変№',
+          131 '有効開始日'.
+** 10行目
+  ULINE  /02(139).
+ENDFORM.                               "F_WRITE_HED
+
+*&---------------------------------------------------------------------*
+*&      Form  F_FIRST
+*&---------------------------------------------------------------------*
+*       初期処理
+*----------------------------------------------------------------------*
+FORM F_FIRST.
+** クリア: テーブル
+  CLEAR:
+    TAB_WRK21,                                              "展開用 2-1
+    TAB_WRK22,                                              "展開用 2-2
+    TAB_PRT.                           "リスト用
+  REFRESH:
+    TAB_WRK21,                                              "展開用 2-1
+    TAB_WRK22,                                              "展開用 2-2
+    TAB_PRT.                           "リスト用
+** クリア: その他
+  CLEAR:
+    G_MAKTX,                           "ヘッダー:品目テキスト
+    G_MATKL.                           "ヘッダー:品目グループ
+ENDFORM.                               " F_FIRST
+
+*&---------------------------------------------------------------------*
+*&      Form  F_GEN_TABLE
+*&---------------------------------------------------------------------*
+*       データ抽出：展開＆テーブル作成
+*----------------------------------------------------------------------*
+FORM F_GEN_TABLE.
+  DATA: L_CNT_TABLE TYPE I,            "テーブル件数
+        L_SUBRC LIKE SY-SUBRC.         "リターンコード
+
+** 合計レコード区分=*を削除            2006/04/17 add
+  DELETE TAB_WRK1 WHERE SUMFG = '*'.
+
+** 初回
+  LOOP AT TAB_WRK1.
+    CHECK TAB_WRK1-LOEKZ = ' '.        "対象判定
+    TAB_WRK21-INTRM = TAB_WRK1-MATNR.
+    TAB_WRK21-MATNR = TAB_WRK1-MATNR.
+    TAB_WRK21-IDNRK = TAB_WRK1-IDNRK.
+    TAB_WRK21-MENGE = TAB_WRK1-MENGE.
+    TAB_WRK21-MEINS = TAB_WRK1-MEINS.
+    TAB_WRK21-AENNR = TAB_WRK1-AENNR.
+    TAB_WRK21-DATUV = TAB_WRK1-DATUV.
+    APPEND TAB_WRK21.
+    CLEAR  TAB_WRK21.
+  ENDLOOP.
+
+** 展開用テーブル2-1が0件になるまでループ
+  DESCRIBE TABLE TAB_WRK1 LINES L_CNT_TABLE.
+
+  WHILE L_CNT_TABLE <> 0.
+    LOOP AT TAB_WRK21.
+      PERFORM F_CALL_FUNC   USING TAB_WRK21-MATNR  "逆展開
+                         CHANGING L_SUBRC.
+      CASE L_SUBRC.
+        WHEN 0.                        "上位レベルあり
+          PERFORM F_GEN_WRK22.
+*        WHEN 3 OR 4.                   "最上位レベル
+        WHEN 2 OR 3 OR 4 OR 5.         "最上位レベル 01/01/30
+          PERFORM F_GEN_PRT.
+        WHEN OTHERS.
+          MESSAGE E006(ZB) WITH 'CS_WHERE_USED_MAT'.
+      ENDCASE.
+    ENDLOOP.
+    CLEAR   TAB_WRK21.
+    REFRESH TAB_WRK21.
+    TAB_WRK21[] = TAB_WRK22[].
+    DESCRIBE TABLE TAB_WRK21 LINES L_CNT_TABLE.
+    CLEAR   TAB_WRK22.
+    REFRESH TAB_WRK22.
+  ENDWHILE.
+
+ENDFORM.                               " F_GEN_TABLE
+
+*&---------------------------------------------------------------------*
+*&      Form  F_GEN_WRK22
+*&---------------------------------------------------------------------*
+*       データ抽出：次の上位レベルのテーブルを作成
+*----------------------------------------------------------------------*
+FORM F_GEN_WRK22.
+  LOOP AT TAB_WRK1.
+    CHECK TAB_WRK1-LOEKZ = ' '.        "対象判定
+    TAB_WRK22-INTRM = TAB_WRK21-INTRM.
+    TAB_WRK22-MATNR = TAB_WRK1-MATNR.
+    TAB_WRK22-IDNRK = TAB_WRK21-IDNRK.
+    TAB_WRK22-MENGE = TAB_WRK1-MENGE * TAB_WRK21-MENGE.
+    TAB_WRK22-MEINS = TAB_WRK21-MEINS.
+    TAB_WRK22-AENNR = TAB_WRK21-AENNR.
+    TAB_WRK22-DATUV = TAB_WRK21-DATUV.
+    APPEND TAB_WRK22.
+    CLEAR  TAB_WRK22.
+  ENDLOOP.
+
+ENDFORM.                               " F_GEN_WRK22
+
+*&---------------------------------------------------------------------*
+*&      Form  F_GEN_PRT
+*&---------------------------------------------------------------------*
+*       データ抽出：最上位レベルのテーブルを作成
+*----------------------------------------------------------------------*
+FORM F_GEN_PRT.
+  DATA: L_BISMT LIKE ENT1034-BISMT,    "機種コード
+        L_MATKL LIKE ENT1034-MATKL.    "品目グループ
+
+  TAB_PRT-INTRM = TAB_WRK21-INTRM.
+  TAB_PRT-MATNR = TAB_WRK21-MATNR.
+  TAB_PRT-IDNRK = TAB_WRK21-IDNRK.
+  TAB_PRT-MENGE = TAB_WRK21-MENGE.
+  TAB_PRT-MEINS = TAB_WRK21-MEINS.
+  TAB_PRT-AENNR = TAB_WRK21-AENNR.
+  TAB_PRT-DATUV = TAB_WRK21-DATUV.
+
+** 品目テキスト　取得 (親)
+  PERFORM F_READ_ENT1034 USING TAB_PRT-MATNR
+                      CHANGING TAB_PRT-MAKTX TAB_PRT-BISMT L_MATKL.
+** 品目テキスト　取得 (直上)
+  PERFORM F_READ_ENT1034 USING TAB_PRT-INTRM
+                      CHANGING TAB_PRT-INTTX L_BISMT L_MATKL.
+  APPEND TAB_PRT.
+  CLEAR  TAB_PRT.
+
+ENDFORM.                               " F_GEN_PRT
+
+*&---------------------------------------------------------------------*
+*&      Form  F_READ_ENT1034
+*&---------------------------------------------------------------------*
+*       品目テキスト、他　取得
+*----------------------------------------------------------------------*
+*      -->P_MATNR    品目コード
+*      <--P_MAKTX    品目テキスト
+*      <--P_BISMT    機種コード
+*      <--P_MATKL    品目グループ
+*----------------------------------------------------------------------*
+FORM F_READ_ENT1034 USING P_MATNR
+                 CHANGING P_MAKTX P_BISMT P_MATKL.
+  CLEAR: ENT1034-MAKTX,
+         ENT1034-BISMT,
+         ENT1034-MATKL.
+
+  SELECT SINGLE
+      MATKL                            "品目グループ
+      MAKTX                            "品目テキスト
+      BISMT                            "機種コード
+      FROM ENT1034
+    INTO (ENT1034-MATKL, ENT1034-MAKTX, ENT1034-BISMT)
+    WHERE  MATNR = P_MATNR
+    AND    SPRAS = 'JA'.
+
+  P_MAKTX = ENT1034-MAKTX.
+  P_BISMT = ENT1034-BISMT.
+  P_MATKL = ENT1034-MATKL.
+ENDFORM.                               " F_READ_ENT1034
+
+*&---------------------------------------------------------------------*
+*&      Form  F_WRITE_REPORT
+*&---------------------------------------------------------------------*
+*       レポート出力
+*----------------------------------------------------------------------*
+FORM F_WRITE_REPORT.
+  DATA: L_BISMT LIKE ENT1034-BISMT.    "機種コード
+
+** 品目テキスト,他　取得(ヘッダー)
+  PERFORM F_READ_ENT1034   USING P_MATNR
+                        CHANGING G_MAKTX L_BISMT G_MATKL.
+
+  LOOP AT TAB_PRT.
+    MOVE-CORRESPONDING TAB_PRT TO REC_LIST.
+** 親品目ブレイク
+    AT NEW MATNR.
+      REC_SAVE-BISMT = REC_LIST-BISMT.
+      REC_SAVE-MATNR = REC_LIST-MATNR.
+      REC_SAVE-MAKTX = REC_LIST-MAKTX.
+    ENDAT.
+** 明細出力
+    PERFORM F_WRITE_DETAIL.
+  ENDLOOP.
+
+ENDFORM.                               " F_WRITE_REPORT
+
+*&---------------------------------------------------------------------*
+*&      Form  F_WRITE_DETAIL
+*&---------------------------------------------------------------------*
+*       レポート　：　明細編集・出力
+*----------------------------------------------------------------------*
+FORM F_WRITE_DETAIL.
+  DATA: L_BISMT(10) TYPE C,            "機種コード
+        L_MATNR(10) TYPE C,            "親品目コード
+        L_INTRM(10) TYPE C.            "直上品目コード
+*--INS START- T5756 - 20150129 --*
+  DATA:
+    L_MAKTX(25)  TYPE C,               "親品目テキスト
+    L_INTTX(25)  TYPE C.               "直上品目テキスト
+*--INS END  - T5756 - 20150129 --*
+
+  WRITE REC_SAVE-BISMT TO L_BISMT.
+  WRITE REC_SAVE-MATNR TO L_MATNR.
+  WRITE TAB_PRT-INTRM  TO L_INTRM.
+
+*--INS START- T5756 - 20150129 --*
+  TRY.
+    CALL METHOD CL_ABAP_LIST_UTILITIES=>READ_FROM_DISPLAY_LAYOUT
+      EXPORTING
+        DISPLAY_DATA   = REC_SAVE-MAKTX
+                                       "親品目テキスト
+        DISPLAY_OFFSET = '0'
+        DISPLAY_LENGTH = '25'
+      IMPORTING
+        FIELD          = L_MAKTX.      "親品目テキスト
+    CATCH CX_PARAMETER_INVALID_RANGE.
+  ENDTRY.
+  TRY.
+    CALL METHOD CL_ABAP_LIST_UTILITIES=>READ_FROM_DISPLAY_LAYOUT
+      EXPORTING
+        DISPLAY_DATA   = TAB_PRT-INTTX "直上品目テキスト
+        DISPLAY_OFFSET = '0'
+        DISPLAY_LENGTH = '25'
+      IMPORTING
+        FIELD          = L_INTTX.      "直上品目テキスト
+    CATCH CX_PARAMETER_INVALID_RANGE.
+  ENDTRY.
+*--INS END  - T5756 - 20150129 --*
+  WRITE: /002 L_BISMT,                 "機種コード
+          016 L_MATNR,                 "親品目コード
+*--UPD START- T5756 - 20150129 --*
+*          030 REC_SAVE-MAKTX+0(25),    "親品目テキスト
+          030 L_MAKTX,                 "親品目テキスト
+*--UPD END  - T5756 - 20150129 --*
+          057 L_INTRM,                 "直上品目コード
+*--UPD START- T5756 - 20150129 --*
+*          073 TAB_PRT-INTTX+0(25),     "直上品目テキスト
+          073 L_INTTX,                 "直上品目テキスト
+*--UPD END  - T5756 - 20150129 --*
+          098 TAB_PRT-MENGE,           "数量
+          117 TAB_PRT-MEINS,           "単位
+          122 TAB_PRT-AENNR+0(06),     "設変番号
+          131 TAB_PRT-DATUV.           "有効開始日
+
+  CLEAR: REC_SAVE.
+ENDFORM.                               " F_WRITE_DETAIL
