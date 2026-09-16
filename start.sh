@@ -16,11 +16,11 @@ read -rp "请选择 (1/2): " CHOICE
 case "$CHOICE" in
   1)
     read -rp "请输入PDF文件路径: " PDF
-    node ecn_pdf_to_excel.mjs "$PDF"
+    node src/scripts/ecn_pdf_to_excel.mjs "$PDF"
     ;;
   2)
     read -rp "请输入包含PDF的文件夹路径: " DIR
-    node batch.js "$DIR"
+    node src/scripts/batch.js "$DIR"
     ;;
   *)
     echo "无效选择"

@@ -4,6 +4,7 @@ import path from 'path';
 import XLSX from 'xlsx';
 import { PDFParse } from 'pdf-parse';
 import { parseReverseBom } from './reverse_bom_to_excel.mjs';
+import { fileURLToPath } from 'url';
 
 const COLUMNS = [
   '直上品目コード',
@@ -54,7 +55,9 @@ export async function mergeReverseBom(inputDir, outputPath) {
   return { files: files.length, rows: rows.length, outputPath };
 }
 
-const inputDir = path.resolve(cleanArg(process.argv[2]) || process.cwd());
+const scriptDir = path.dirname(fileURLToPath(import.meta.url));
+const resourcesDataDir = path.join(scriptDir, '..', 'resources', 'data');
+const inputDir = path.resolve(cleanArg(process.argv[2]) || path.join(resourcesDataDir, 'md_pdf'));
 const outIndex = process.argv.indexOf('--out');
 const outputPath = path.resolve(
   cleanArg(outIndex >= 0 ? process.argv[outIndex + 1] : '')

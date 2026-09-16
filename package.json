@@ -3,12 +3,14 @@
   "version": "1.0.0",
   "description": "ECN(PDF) → 两个 Excel（ヘッダ情報 / 明細情報）自动解析工具",
   "type": "module",
-  "main": "ecn_pdf_to_excel.mjs",
+  "main": "src/scripts/ecn_pdf_to_excel.mjs",
   "scripts": {
-    "start": "node ecn_pdf_to_excel.mjs",
-    "batch": "node batch.js",
-    "reverse-bom": "node reverse_bom_to_excel.mjs",
-    "merge-reverse-bom": "node merge_reverse_bom.mjs"
+    "start": "node src/scripts/ecn_pdf_to_excel.mjs",
+    "batch": "node src/scripts/batch.js",
+    "merge-excel": "node src/scripts/merge_excel.mjs",
+    "reverse-bom": "node src/scripts/reverse_bom_to_excel.mjs",
+    "merge-reverse-bom": "node src/scripts/merge_reverse_bom.mjs",
+    "fill-reverse-lookup": "node src/scripts/fill_reverse_lookup.mjs"
   },
   "dependencies": {
   "pdf-parse": "^2.4.5",

@@ -2,12 +2,15 @@
 import fs from 'fs';
 import path from 'path';
 import XLSX from 'xlsx';
+import { fileURLToPath } from 'url';
 
 function cleanArg(value) {
   return value?.replace(/^['"]|['"]$/g, '');
 }
 
-const rootDir = path.resolve(cleanArg(process.argv[2]) || 'stpo_mast');
+const scriptDir = path.dirname(fileURLToPath(import.meta.url));
+const resourcesDataDir = path.join(scriptDir, '..', 'resources', 'data');
+const rootDir = path.resolve(cleanArg(process.argv[2]) || path.join(resourcesDataDir, 'stpo_mast'));
 const outIndex = process.argv.indexOf('--out');
 const inputLookupPath = path.join(rootDir, 'output', 're_sc.xlsx');
 const outputLookupPath = path.resolve(

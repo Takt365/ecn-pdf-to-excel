@@ -9,9 +9,9 @@
 - 使用 `pdf-parse` 解析 PDF，使用 `xlsx` 生成 Excel
 
 ## 数据格式依据
-- `ec_pdf.txt` 是本工具对应的 ABAP 开发源码，记录 ECN 报表的字段、标签和明细布局。
+- `src/resources/docs/ec_pdf.txt` 是本工具对应的 ABAP 开发源码，记录 ECN 报表的字段、标签和明细布局。
 - PDF 的字段解析规则依据该 ABAP 报表输出格式编写；如果 ABAP 报表布局发生变化，需要同步调整 `ecn_pdf_to_excel.mjs` 中的解析标签和明细规则。
-- `ec_pdf.txt` 仅作为格式和字段参考，不是 Node.js 运行时依赖。
+- `src/resources/docs/ec_pdf.txt` 仅作为格式和字段参考，不是 Node.js 运行时依赖。
 
 ```bash
 # Windows: 下载安装 Node.js https://nodejs.org
@@ -29,16 +29,29 @@ cd ecn-pdf-to-excel
 npm install
 
 # 3. 单个 PDF 转换
-node ecn_pdf_to_excel.mjs "/path/to/GA1674.pdf"
+node src/scripts/ecn_pdf_to_excel.mjs "/path/to/GA1674.pdf"
 #   → 在同目录生成两个 Excel
 
 # 3b. 指定输出目录
-node ecn_pdf_to_excel.mjs "/path/to/GA1674.pdf" --out "./output"
+node src/scripts/ecn_pdf_to_excel.mjs "/path/to/GA1674.pdf" --out "./output"
 
 # 4. 批量转换整个文件夹
-node batch.js "/path/to/pdf文件夹"
-node batch.js "/path/to/pdf文件夹" --out "./output"
+node src/scripts/batch.js "/path/to/pdf文件夹"
+node src/scripts/batch.js "/path/to/pdf文件夹" --out "./output"
 ```
+
+## 数据目录说明
+
+| 目录 | 内容 | 说明 |
+|------|------|------|
+| `src/resources/data/ec_pdf/` | ECN PDF 和转换后的文本/Excel | ECN 转换输入及结果 |
+| `src/resources/data/md_pdf/` | 逆展開 PDF 和相关结果 | 机种清单转换输入及结果 |
+| `src/resources/data/stpo_mast/` | `stpo_ec*.XLSX`、`mast_ec*.XLSX`、`output/` | 物料 BOM 级联回填输入及结果 |
+| `src/resources/data/ec_pdf_*/` | 带日期或批次后缀的 ECN 数据 | 历史或临时批次，不作为主数据目录 |
+| `src/resources/data/md_pdf_*/` | 带日期或批次后缀的逆展開数据 | 历史或临时批次，不作为主数据目录 |
+| `src/resources/data/stpo_mast_*/` | 带日期或批次后缀的 BOM 数据 | 历史或临时批次，不作为主数据目录 |
+
+基础目录用于当前处理数据；带 `_` 后缀的目录用于保存其他批次。后缀目录默认被 Git 忽略，Excel 输出文件也默认不自动提交；需要提交某一组数据时，应明确选择对应文件。
 
 也可用 npm 脚本：
 ```bash
@@ -51,14 +64,14 @@ npm run batch -- "/path/to/pdf文件夹"
 将批量转换生成的多个 `*_out_数字.xlsx` 文件合并为一个 Excel。脚本会读取每个文件的 `主表` 和 `子表1`，输出工作表 `主表`、`子表`。
 
 ```bash
-# 默认读取当前目录下的 output，输出 output/miss_ec.xlsx
-node merge_excel.mjs
+# 默认读取 src/resources/data/ec_pdf/output，输出 src/resources/data/ec_pdf/output/miss_ec.xlsx
+node src/scripts/merge_excel.mjs
 
 # 指定输入目录
-node merge_excel.mjs "/path/to/output"
+node src/scripts/merge_excel.mjs "/path/to/output"
 
 # 指定输入目录和输出文件
-node merge_excel.mjs "/path/to/output" --out "/path/to/output/miss_ec.xlsx"
+node src/scripts/merge_excel.mjs "/path/to/output" --out "/path/to/output/miss_ec.xlsx"
 ```
 
 输入目录中至少需要有一个符合 `*_out_数字.xlsx` 命名规则的文件，并且文件包含对应的工作表。
@@ -69,8 +82,8 @@ node merge_excel.mjs "/path/to/output" --out "/path/to/output/miss_ec.xlsx"
 `親品目コード`、`親品目テキスト`、`直上品目コード`、`直上品目テキスト`。
 
 ```bash
-node reverse_bom_to_excel.mjs "/path/to/ZS0PR012D.pdf"
-node reverse_bom_to_excel.mjs "/path/to/ZS0PR012D.pdf" --out "./output"
+node src/scripts/reverse_bom_to_excel.mjs "/path/to/ZS0PR012D.pdf"
+node src/scripts/reverse_bom_to_excel.mjs "/path/to/ZS0PR012D.pdf" --out "./output"
 
 # 或使用 npm 脚本
 npm run reverse-bom -- "/path/to/ZS0PR012D.pdf"
@@ -81,8 +94,8 @@ npm run reverse-bom -- "/path/to/ZS0PR012D.pdf"
 多个逆展開 PDF 合并为一个 Excel：
 
 ```bash
-node merge_reverse_bom.mjs "/path/to/pdf文件夹"
-node merge_reverse_bom.mjs "/path/to/pdf文件夹" --out "./output/机种清单.xlsx"
+node src/scripts/merge_reverse_bom.mjs "/path/to/pdf文件夹"
+node src/scripts/merge_reverse_bom.mjs "/path/to/pdf文件夹" --out "./output/机种清单.xlsx"
 
 # 或使用 npm 脚本
 npm run merge-reverse-bom -- "/path/to/pdf文件夹"
@@ -92,7 +105,7 @@ npm run merge-reverse-bom -- "/path/to/pdf文件夹"
 
 ## 逆展開物料级联回填
 
-以 `stpo_mast/output/re_sc.xlsx` 中的 `親品目` 作为固定清单，再通过 `stpo_ec*.XLSX` 和 `mast_ec*.XLSX` 逐级推导完成品物料。这里的输入目录是 Excel 源文件所在目录，不是 PDF 目录。
+以 `src/resources/data/stpo_mast/output/re_sc.xlsx` 中的 `親品目` 作为固定清单，再通过 `stpo_ec*.XLSX` 和 `mast_ec*.XLSX` 逐级推导完成品物料。这里的输入目录是 Excel 源文件所在目录，不是 PDF 目录。
 级联关系按目录中实际存在的文件组自动判断，不限制层数。例如：
 
 ```text
@@ -102,8 +115,8 @@ stpo_ec* → mast_ec* → stpo_ec* → mast_ec* → ...
 脚本会自动扫描 `stpo_ec*.XLSX`，按相同后缀匹配 `mast_ec*.XLSX`，并按文件编号顺序级联到最后一组。每一级使用 `stpo` 的 `组件` 匹配当前物料，再通过 `物料单` 关联同级 `mast` 的 `物料单`，取得下一层物料。没有下游 BOM 的物料作为最终完成品物料。
 
 ```bash
-node fill_reverse_lookup.mjs "./stpo_mast"
-node fill_reverse_lookup.mjs "./stpo_mast" --out "./output/re_lookup.XLSX"
+node src/scripts/fill_reverse_lookup.mjs "./src/resources/data/stpo_mast"
+node src/scripts/fill_reverse_lookup.mjs "./src/resources/data/stpo_mast" --out "./src/resources/data/stpo_mast/output/re_lookup.XLSX"
 ```
 
 脚本读取 `output/re_sc.xlsx`，默认输出到 `output/re_lookup.XLSX`；也可以通过 `--out` 指定输出文件，并生成两个工作表：
@@ -127,12 +140,13 @@ node fill_reverse_lookup.mjs "./stpo_mast" --out "./output/re_lookup.XLSX"
 ## 文件说明
 | 文件 | 作用 |
 |------|------|
-| `ecn_pdf_to_excel.mjs` | 主脚本：单个 PDF → 两个 Excel |
-| `batch.js` | 批量脚本：遍历文件夹 |
-| `merge_excel.mjs` | 合并多个 ECN Excel → 一个 Excel |
-| `reverse_bom_to_excel.mjs` | 逆展開报告 → 机种清单 |
-| `merge_reverse_bom.mjs` | 合并多个逆展開报告 → 一个机种清单 |
-| `fill_reverse_lookup.mjs` | 按 stpo/mast 级联回填完成品物料 |
-| `ec_pdf.txt` | 对应的 ABAP 开发源码和报表格式参考 |
+| `src/scripts/ecn_pdf_to_excel.mjs` | 主脚本：单个 PDF → 两个 Excel |
+| `src/scripts/batch.js` | 批量脚本：遍历文件夹 |
+| `src/scripts/merge_excel.mjs` | 合并多个 ECN Excel → 一个 Excel |
+| `src/scripts/reverse_bom_to_excel.mjs` | 逆展開报告 → 机种清单 |
+| `src/scripts/merge_reverse_bom.mjs` | 合并多个逆展開报告 → 一个机种清单 |
+| `src/scripts/fill_reverse_lookup.mjs` | 按 stpo/mast 级联回填完成品物料 |
+| `src/resources/docs/ec_pdf.txt` | 对应的 ABAP 开发源码和报表格式参考 |
+| `src/resources/docs/md_pdf.txt` | 逆展開报告对应的 ABAP 源码参考 |
 | `package.json` | 依赖声明 |
 | `README.md` | 本说明 |

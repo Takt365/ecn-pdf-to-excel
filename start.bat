@@ -18,12 +18,12 @@ if "%CHOICE%"=="3" exit /b
 
 :SINGLE
 set /p PDFPATH="PDF file path: "
-node ecn_pdf_to_excel.mjs "%PDFPATH%"
+node src\scripts\ecn_pdf_to_excel.mjs "%PDFPATH%"
 pause
 exit /b
 
 :BATCH
 set /p FOLDER="Folder path containing PDFs: "
-node batch.js "%FOLDER%"
+node src\scripts\batch.js "%FOLDER%"
 pause
 exit /b

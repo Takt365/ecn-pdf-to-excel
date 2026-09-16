@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import XLSX from 'xlsx';
+import { fileURLToPath } from 'url';
 
 function cleanArg(value) {
   return value?.replace(/^['"]|['"]$/g, '');
@@ -71,7 +72,9 @@ function mergeExcel(inputDir, outputPath) {
   return { files: files.length, mainRows: mainRows.length, subRows: subRows.length, outputPath };
 }
 
-const inputDir = path.resolve(cleanArg(process.argv[2]) || path.join(process.cwd(), 'output'));
+const scriptDir = path.dirname(fileURLToPath(import.meta.url));
+const resourcesDataDir = path.join(scriptDir, '..', 'resources', 'data');
+const inputDir = path.resolve(cleanArg(process.argv[2]) || path.join(resourcesDataDir, 'ec_pdf', 'output'));
 const outIndex = process.argv.indexOf('--out');
 const outputPath = path.resolve(
   cleanArg(outIndex >= 0 ? process.argv[outIndex + 1] : '')
