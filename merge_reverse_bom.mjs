@@ -16,6 +16,16 @@ function cleanArg(value) {
   return value?.replace(/^['"]|['"]$/g, '');
 }
 
+function ensureOutputDir(outputPath) {
+  const outputDir = path.dirname(outputPath);
+  if (fs.existsSync(outputDir)) {
+    console.log(`输出目录已存在，跳过创建: ${outputDir}`);
+    return;
+  }
+  fs.mkdirSync(outputDir, { recursive: true });
+  console.log(`已创建输出目录: ${outputDir}`);
+}
+
 async function readPdfRows(filePath) {
   const parser = new PDFParse({ data: fs.readFileSync(filePath) });
   const parsed = await parser.getText();
@@ -39,7 +49,7 @@ export async function mergeReverseBom(inputDir, outputPath) {
   const workbook = XLSX.utils.book_new();
   const sheet = XLSX.utils.json_to_sheet(rows, { header: COLUMNS });
   XLSX.utils.book_append_sheet(workbook, sheet, '机种清单');
-  fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+  ensureOutputDir(outputPath);
   XLSX.writeFile(workbook, outputPath);
   return { files: files.length, rows: rows.length, outputPath };
 }

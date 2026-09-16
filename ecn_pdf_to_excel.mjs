@@ -106,17 +106,15 @@ function parseMemo(firstPage) {
   return result.join('\n').trim();
 }
 
-// ABAP material numbers are one or two letters followed by 7-9 digits,
-// optionally ending in a revision letter. This excludes uppercase words in descriptions.
-const ITEM_RE = /\b[A-Z]{1,2}\d{7,9}[A-Z]?\b/g;
 const QTY_RE = /\b\d+\.\d{3}\b/g;
 
-function parseSide(data, itemMatch, quantity) {
+function parseSide(data, quantity) {
+  const itemMatch = data.match(/^\s*(\S+)/);
   if (!itemMatch || !quantity) return { code: '', name: '', quantity: '', position: '' };
-  const codeEnd = itemMatch.index + itemMatch[0].length;
+  const codeEnd = itemMatch[0].length;
   const quantityAt = data.indexOf(quantity, codeEnd);
   return {
-    code: itemMatch[0],
+    code: itemMatch[1],
     name: clean(data.slice(codeEnd, quantityAt)),
     quantity,
     position: ''
@@ -124,22 +122,33 @@ function parseSide(data, itemMatch, quantity) {
 }
 
 function parseDetailLine(line, current, mainNo) {
-  const row = line.match(/^(\d+)\s*-\s*(\d+)\s+([\s\S]+)$/);
+  const row = line.match(/^(\d+)\s*-\s*(\d+)([ \t]*)([\s\S]+)$/);
   if (!row) return null;
-  const meta = row[3].match(/\s+(\d{4})\s+([A-D][*]?|-)\s+([1-9-])\s+([1-9-])\s+([1-9-])\s*$/);
-  const data = meta ? row[3].slice(0, meta.index) : row[3];
-  const items = [...data.matchAll(ITEM_RE)];
-  const quantities = [...data.matchAll(QTY_RE)].map(match => match[0]);
-  let oldSide = parseSide(data, items[0], quantities[0]);
-  let newSide = parseSide(data, items[1], quantities[1]);
-  if (items.length === 1) {
-    // With one material, the ABAP report writes the detail flags only on the old side.
-    if (!meta) {
-      newSide = oldSide;
-      oldSide = { code: '', name: '', quantity: '', position: '' };
-    }
+  const rawData = row[4];
+  const meta = rawData.match(/\s+(\d{4})\s+([A-D][*]?|-)\s+([1-9-])\s+([1-9-])\s+([1-9-])\s*$/);
+  const data = meta ? rawData.slice(0, meta.index) : rawData;
+  const quantities = [...data.matchAll(QTY_RE)];
+  const firstQuantity = quantities[0];
+  const secondQuantity = quantities[1];
+  const newOnlyMarker = data.match(/(?:^|\s)\+\s*/);
+  const newOnlyLayout = row[3].includes('\t');
+  let oldSide;
+  let newSide;
+  if ((newOnlyMarker || newOnlyLayout) && firstQuantity) {
+    const markerEnd = newOnlyMarker
+      ? data.indexOf('+', newOnlyMarker.index) + 1
+      : 0;
+    const newData = data.slice(markerEnd);
+    oldSide = { code: '', name: '', quantity: '', position: '' };
+    newSide = parseSide(newData, firstQuantity[0]);
+  } else {
+    const oldData = firstQuantity ? data.slice(0, firstQuantity.index) : data;
+    const newData = firstQuantity && secondQuantity
+      ? data.slice(firstQuantity.index + firstQuantity[0].length, secondQuantity.index)
+      : '';
+    oldSide = parseSide(oldData, firstQuantity?.[0]);
+    newSide = parseSide(newData, secondQuantity?.[0]);
   }
-
   const potx = [meta?.[2] || '', meta?.[3] || '', meta?.[4] || '', meta?.[5] || ''];
   return {
     '行号': `${row[1]}-${row[2]}`,
@@ -172,7 +181,7 @@ function parseSub(text, mainNo) {
       continue;
     }
     if (/^\d+\s*-\s*\d+\s+/.test(line)) {
-      const row = parseDetailLine(line, current, mainNo);
+      const row = parseDetailLine(raw, current, mainNo);
       if (row) {
         rows.push(row);
         currentRow = row;

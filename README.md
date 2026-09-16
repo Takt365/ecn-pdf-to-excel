@@ -46,6 +46,23 @@ npm start -- "/path/to/GA1674.pdf"
 npm run batch -- "/path/to/pdf文件夹"
 ```
 
+## 合并 ECN Excel
+
+将批量转换生成的多个 `*_out_数字.xlsx` 文件合并为一个 Excel。脚本会读取每个文件的 `主表` 和 `子表1`，输出工作表 `主表`、`子表`。
+
+```bash
+# 默认读取当前目录下的 output，输出 output/miss_ec.xlsx
+node merge_excel.mjs
+
+# 指定输入目录
+node merge_excel.mjs "/path/to/output"
+
+# 指定输入目录和输出文件
+node merge_excel.mjs "/path/to/output" --out "/path/to/output/miss_ec.xlsx"
+```
+
+输入目录中至少需要有一个符合 `*_out_数字.xlsx` 命名规则的文件，并且文件包含对应的工作表。
+
 ## 逆展開报告生成机种清单
 
 针对 `ZS0PR012D` 最终逆展開报告，生成只包含以下四列的 Excel：
@@ -71,7 +88,28 @@ node merge_reverse_bom.mjs "/path/to/pdf文件夹" --out "./output/机种清单.
 npm run merge-reverse-bom -- "/path/to/pdf文件夹"
 ```
 
-脚本会读取文件夹内全部 PDF，合并输出一个 `机种清单` 工作表，并只保留上述四列。
+脚本会读取输入目录内全部 PDF，合并输出一个 `机种清单` 工作表，并只保留上述四列。这里的输入目录是 PDF 所在目录，例如 `/path/to/pdf文件夹`。
+
+## 逆展開物料级联回填
+
+以 `stpo_mast/output/re_sc.xlsx` 中的 `親品目` 作为固定清单，再通过 `stpo_ec*.XLSX` 和 `mast_ec*.XLSX` 逐级推导完成品物料。这里的输入目录是 Excel 源文件所在目录，不是 PDF 目录。
+级联关系按目录中实际存在的文件组自动判断，不限制层数。例如：
+
+```text
+stpo_ec* → mast_ec* → stpo_ec* → mast_ec* → ...
+```
+
+脚本会自动扫描 `stpo_ec*.XLSX`，按相同后缀匹配 `mast_ec*.XLSX`，并按文件编号顺序级联到最后一组。每一级使用 `stpo` 的 `组件` 匹配当前物料，再通过 `物料单` 关联同级 `mast` 的 `物料单`，取得下一层物料。没有下游 BOM 的物料作为最终完成品物料。
+
+```bash
+node fill_reverse_lookup.mjs "./stpo_mast"
+node fill_reverse_lookup.mjs "./stpo_mast" --out "./output/re_lookup.XLSX"
+```
+
+脚本读取 `output/re_sc.xlsx`，默认输出到 `output/re_lookup.XLSX`；也可以通过 `--out` 指定输出文件，并生成两个工作表：
+
+- `lookup`：每个 `親品目` 对应的完成品物料汇总在同一行。
+- `list`：每个完成品物料单独一行，列为 `設変番号`、`完成品物料`、`親品目`。
 
 ## 输出示例
 ```
@@ -91,8 +129,10 @@ npm run merge-reverse-bom -- "/path/to/pdf文件夹"
 |------|------|
 | `ecn_pdf_to_excel.mjs` | 主脚本：单个 PDF → 两个 Excel |
 | `batch.js` | 批量脚本：遍历文件夹 |
+| `merge_excel.mjs` | 合并多个 ECN Excel → 一个 Excel |
 | `reverse_bom_to_excel.mjs` | 逆展開报告 → 机种清单 |
 | `merge_reverse_bom.mjs` | 合并多个逆展開报告 → 一个机种清单 |
+| `fill_reverse_lookup.mjs` | 按 stpo/mast 级联回填完成品物料 |
 | `ec_pdf.txt` | 对应的 ABAP 开发源码和报表格式参考 |
 | `package.json` | 依赖声明 |
 | `README.md` | 本说明 |

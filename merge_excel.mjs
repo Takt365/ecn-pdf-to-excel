@@ -6,6 +6,16 @@ function cleanArg(value) {
   return value?.replace(/^['"]|['"]$/g, '');
 }
 
+function ensureOutputDir(outputPath) {
+  const outputDir = path.dirname(outputPath);
+  if (fs.existsSync(outputDir)) {
+    console.log(`输出目录已存在，跳过创建: ${outputDir}`);
+    return;
+  }
+  fs.mkdirSync(outputDir, { recursive: true });
+  console.log(`已创建输出目录: ${outputDir}`);
+}
+
 function readRows(sheet) {
   return XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
 }
@@ -55,14 +65,17 @@ function mergeExcel(inputDir, outputPath) {
   const subSheet = XLSX.utils.aoa_to_sheet([subHeader, ...subRows]);
   XLSX.utils.book_append_sheet(outputWorkbook, mainSheet, '主表');
   XLSX.utils.book_append_sheet(outputWorkbook, subSheet, '子表');
+  ensureOutputDir(outputPath);
   XLSX.writeFile(outputWorkbook, outputPath);
 
   return { files: files.length, mainRows: mainRows.length, subRows: subRows.length, outputPath };
 }
 
-const inputDir = path.resolve(cleanArg(process.argv[2]) || path.join(process.cwd(), 'output_final'));
+const inputDir = path.resolve(cleanArg(process.argv[2]) || path.join(process.cwd(), 'output'));
+const outIndex = process.argv.indexOf('--out');
 const outputPath = path.resolve(
-  cleanArg(process.argv[3]) || path.join(inputDir, 'miss_ec.xlsx')
+  cleanArg(outIndex >= 0 ? process.argv[outIndex + 1] : '')
+    || path.join(inputDir, 'miss_ec.xlsx')
 );
 
 if (!fs.existsSync(inputDir)) {
