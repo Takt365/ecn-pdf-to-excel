@@ -1,6 +1,8 @@
 node_modules/
 output*/
-stpo_mast*/
+ec_pdf_*/
+md_pdf_*/
+stpo_mast_*/
 *.xlsx
 *.xls
 ~$*.xlsx
